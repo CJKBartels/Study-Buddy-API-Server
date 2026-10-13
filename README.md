@@ -103,7 +103,7 @@ Assignments are shared by the whole course. Any member can post one, and moderat
 
 So `AssignmentUserState` holds one document per (assignment, user) pair, with the state, personal notes, and a personal due date. A unique index on `(assignment, user)` makes duplicates impossible, and a single model method, `findOrCreate`, is the only code that creates these documents. It's an atomic upsert, so two first visits at the same moment still produce one document.
 
-**Tradeoff:** states are created lazily, the first time a user lists a course's assignments. That request pays one upsert per assignment. Embedding a progress array inside each assignment would skip the extra collection, but then every student's update would rewrite the same shared document.
+**Tradeoff:** states are created lazily, so listing a course's assignments writes to the database the first time: one upsert per assignment. A read request that does writes gets slower as a course grows, and it can fail for write-side reasons. Embedding a progress array in each assignment would avoid this, but then every student's update would rewrite the same shared document.
 
 ### Tokens live on the user so one device can sign out
 
@@ -111,7 +111,7 @@ A JWT stays valid until it expires, and the server has no built-in way to take o
 
 Every sign-in pushes its token onto `user.tokens`. The `auth` middleware accepts a token only if its signature checks out and it's still in that array. Signing out removes that one token, so signing out on your laptop leaves your phone signed in.
 
-**Tradeoff:** every authenticated request does a database lookup, which gives up the main draw of JWTs (verifying without a lookup). Tokens also never expire yet, and the array only grows. [#13](https://github.com/CJKBartels/Study-Buddy-API-Server/issues/13) adds expiry and cleanup.
+**Tradeoff:** tokens never expire yet, so a leaked token stays valid until someone signs out on that device. [#13](https://github.com/CJKBartels/Study-Buddy-API-Server/issues/13) adds expiry and cleanup.
 
 ### Access checks are a middleware chain that loads documents
 
@@ -127,7 +127,7 @@ router.patch('/courses/:courseId/sessions/:sessionId',
 
 Handlers trust what's on `req` instead of checking again.
 
-**Tradeoff:** the order matters and nothing enforces it (`isCourseMember` needs the `req.user` that `auth` sets), and each step is its own query. The checks are also tied to Express's `req` and `res`, so real-time messaging over WebSockets will need them pulled out into plain functions that both paths call.
+**Tradeoff:** the checks are written against Express's `req` and `res`, so a second way in can't reuse them. Real-time messaging over WebSockets will need them pulled out into plain functions that both paths call.
 
 ### Every error has the same shape
 
@@ -139,7 +139,7 @@ Routes throw `new AppError('COURSE_NOT_FOUND')`. The HTTP status and default mes
 
 That includes errors the code never throws itself: Mongoose validation, cast, and duplicate-key errors, JWT errors, and malformed JSON. Express 5 forwards rejected async handlers to the error middleware, so routes don't need try/catch. The frontend can branch on `code` instead of parsing messages.
 
-**Tradeoff:** unexpected errors return a generic 500 and get logged on the server. That keeps stack traces out of responses, but debugging means reading server logs. The session and availability routers still return the old mix of plain strings and ad-hoc JSON (one returns an emoji); [#3](https://github.com/CJKBartels/Study-Buddy-API-Server/issues/3) and [#4](https://github.com/CJKBartels/Study-Buddy-API-Server/issues/4) move them over.
+**Tradeoff:** until [#3](https://github.com/CJKBartels/Study-Buddy-API-Server/issues/3) and [#4](https://github.com/CJKBartels/Study-Buddy-API-Server/issues/4) land, the session and availability routers still return the old mix of plain strings and ad-hoc JSON (one returns an emoji), so clients have to handle both shapes.
 
 ## Testing
 
