@@ -33,6 +33,10 @@ npm run lint                # eslint (style: no semicolons, single quotes, 1tbs)
 npm run api                 # serve the standalone swagger editor
 ```
 
+CI (`.github/workflows/ci.yml`) runs `npm ci`, `npm run lint`, and `npm test` on
+pushes to `main` and on PRs into `main`. `package-lock.json` is committed. Commit it with
+any dependency change, or `npm ci` fails.
+
 `.env` needs `PORT`, `MONGODB_URL`, `JSON_WEB_TOKEN_SECRET`. Tests need none of
 these. They start their own in-memory MongoDB.
 
