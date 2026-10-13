@@ -1,87 +1,115 @@
-# CLAUDE.md — Study Buddy API Server (backend)
+# CLAUDE.md
 
-Context for AI assistants and humans working in this repo. Keep it lean.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## What this is
 
-The **REST API** for Study Buddy — a site where students in the same course find
+The **REST API** for Study Buddy, a site where students in the same course find
 each other, plan study sessions, and track shared coursework. The frontend SPA
-lives in a sibling repo: `Study-Buddy`.
+lives in a separate repo, `Study-Buddy`.
 
-## Product docs (canonical, in the frontend repo)
+## Product docs (in the frontend repo)
 
-The product-level docs cover **both** repos and live in `Study-Buddy/docs/`:
+Product-level docs cover **both** repos and live in `Study-Buddy/docs/`:
 
-- `Study-Buddy/docs/MVP.md` — scope + "done" criteria.
-- `Study-Buddy/docs/ROADMAP.md` — feature list + live status (incl. backend bugs).
-- `Study-Buddy/docs/ARCHITECTURE.md` — decisions, trade-offs, **code critiques**,
-  open questions. Read §3 (critiques) before changing routes/models.
+- `MVP.md`: scope and "done" criteria.
+- `ROADMAP.md`: feature list and live status (including backend bugs).
+- `ARCHITECTURE.md`: decisions, trade-offs, **code critiques**, open questions.
+  Read §3 (critiques) before changing routes or models.
 
-(If the repos aren't checked out side by side, ask where `Study-Buddy` lives.)
+That repo is **not** checked out next to this one. Ask where it lives before
+relying on it. Backend-only bug tracking is in `docs/ISSUES.md` (SB-n issues).
 
-## Stack
-
-- Node + Express 5
-- MongoDB via Mongoose (`src/db/mongoose.js`)
-- Auth: JWT (`jsonwebtoken`) + `bcrypt`; stateful tokens stored on the user
-- Swagger docs: `swagger-jsdoc` + `swagger-ui-express` at `/api-docs`
-- Present but verify usage: `@sendgrid/mail` (email), `multer` + `sharp` (uploads)
-- Plain JavaScript, ES modules (no TypeScript yet — see ARCHITECTURE D2)
-
-## Run
+## Commands
 
 ```sh
-npm install
-npm run dev   # env-cmd + nodemon (needs a .env: PORT, MONGODB URI, JSON_WEB_TOKEN_SECRET, ...)
-npm start     # node src/app.js
-npm run api   # serve the swagger editor
+npm run dev                 # env-cmd + nodemon on src/server.js (reads .env)
+npm start                   # node src/server.js
+npm test                    # vitest in watch mode
+npx vitest run              # run all tests once
+npx vitest run tests/routers/course.test.js   # one file
+npx vitest run -t "returns 201"               # tests whose name matches
+npx eslint .                # lint (no npm script; style: no semicolons, single quotes, 1tbs)
+npm run api                 # serve the standalone swagger editor
 ```
 
-Requires a `.env` (loaded via `env-cmd`). At minimum: `PORT`,
-`JSON_WEB_TOKEN_SECRET`, the Mongo connection string, and any SendGrid key if
-email is used. Never commit `.env`.
+`.env` needs `PORT`, `MONGODB_URL`, `JSON_WEB_TOKEN_SECRET`. Tests need none of
+these. They start their own in-memory MongoDB.
 
-## Layout
+## Architecture
 
-- `src/app.js` — Express setup, mounts routers, Swagger.
-- `src/models/` — Mongoose schemas (user, course, courseMembership, assignment,
-  assignmentUserState, session, sessionParticipant, sessionMessage, availability).
-- `src/routers/` — user, course, assignments, session, availability.
-- `src/middleware/` — `auth`, `courseAccess`, `sessionAccess`, `assignmentAccess`.
-- `src/assets/` — `error.js`, `timezoneValidation.js`.
+**`app.js` vs `server.js`.** `src/app.js` builds and exports the Express app
+without connecting to the DB or listening. `src/server.js` imports
+`db/mongoose.js` (the DB connection side effect) and calls `listen`. Tests import
+`app` directly with `supertest`. Keep `app.js` free of side effects.
 
-## Conventions (target state — see ARCHITECTURE §5)
+**Access control is a middleware chain that loads resources onto `req`.** Routes
+compose `auth → isCourse → isCourseMember | isCourseModerator | isCourseAdmin →
+isAssignment / isSession …`. Each step validates the ObjectId, loads the document,
+and attaches it (`req.user`, `req.token`, `req.course`, `req.courseMembership`,
+…). Handlers read from `req` instead of re-querying. Role/ban checks live in
+`middleware/courseAccess.js`, not in handlers.
+
+**Membership is modeled as join collections.** These are `CourseMembership`
+(role: member/moderator/admin, status: active/banned), `SessionParticipant`, and
+`AssignmentUserState` (one user's progress on a shared assignment). Each has a
+compound unique index. Write rows under a unique index through **one atomic code
+path** (for example `AssignmentUserState.findOrCreate`, an upsert), never
+`findOne` followed by `create`.
+
+**Auth tokens are stateful.** `user.generateAuthToken()` pushes each JWT onto
+`user.tokens`. `auth` requires the token to still be in that array, so sign-out
+works by removing it.
+
+**Errors: one envelope, central handler (migration in progress).** Throw
+`new AppError('CODE', { message?, details? })` (`src/assets/AppError.js`). Status
+and default message come from `src/assets/errorCodes.js`. Add new codes there.
+`middleware/errorHandler.js` (mounted last) turns every error into
+`{ error: { code, message, details? } }`, including Mongoose
+validation/cast/duplicate-key errors and JWT errors. Express 5 forwards rejected
+async handlers automatically, so routes just `throw` without try/catch.
+- Migrated: `user`, `course`, `assignments` routers; `auth`, `courseAccess`,
+  `assignmentAccess` middleware.
+- **Not yet migrated** (still `res.status(...).send(...)` with mixed shapes):
+  `session` and `availability` routers, `sessionAccess` middleware. When you
+  touch them, convert to `AppError`. `src/assets/error.js`
+  (`sendValidationError`) is the legacy helper.
+
+**Global Mongoose schema settings.** `db/mongoose.js` makes every String field
+trimmed and rejects empty strings. `tests/setup.js` repeats these settings
+because tests never import `db/mongoose.js`. **Change both together.**
+
+**Swagger.** The spec is built from `@openapi` JSDoc blocks in
+`src/routers/**/*.js`. Shared schemas live in `swagger.js` under
+`components.schemas`. It is served at `/api-docs`. `user`, `course`, and
+`assignments` are documented. `session` and `availability` are not yet.
+
+## Testing
+
+Vitest + supertest + `mongodb-memory-server`. `tests/globalSetup.js` starts one
+in-memory Mongo and sets the env vars. `tests/setup.js` connects and wipes every
+collection `beforeEach`. `fileParallelism: false` is required because all test
+files share that one DB. Router tests build state through the HTTP API (create
+user → sign in → use the token) instead of inserting directly.
+
+## Conventions
 
 - Routes are REST, nested under `/courses/:courseId/...`.
-- **Declare specific paths before param paths** (e.g. `/members/me` before
-  `/members/:userId`) — an ordering bug currently breaks "leave course".
-- Errors should use one envelope `{ error: { code, message } }` via a central
-  error-handling middleware — not the current mix of strings/JSON/emoji.
-- Document new routes with `@openapi` JSDoc (only the course router is documented
-  so far).
-- Use meaninful variable names
-
-## Behavioral Rules
-
-- Functional programming preferred
-- Tests are required for features
-- No console.log in production code
-- Always review diffs before accepting.
-
-## Available Agents
-
-- /code-reviewer: Reviews code for quality
-- /doc-writer: Generates README files, API documentation, Architecture docs, User guides
-- /test-writer: Generates test cases
-
-Invoke by name in natural language ("use the doc-writer agent to document the
-course router") or @-mention the agent in your prompt.
+- **Declare specific paths before param paths** (`/members/me` before
+  `/members/:userId`). An ordering bug of this kind has broken "leave course"
+  before.
+- Document new routes with `@openapi` JSDoc.
+- Functional style preferred. Use meaningful variable names. No `console.log`
+  in request paths (startup logging and the 5xx log in `errorHandler` are the
+  exceptions).
+- Features need tests.
 
 ## Learning log
 
-`docs/learning-log.md` — append via /log at the end of each task.
+Record design decisions and lessons in `docs/learning-log.md`, newest first,
+using the format of the existing entries.
 
 ## When you finish something
 
-Update status in `Study-Buddy/docs/ROADMAP.md`; add design issues to
-`ARCHITECTURE.md` and `ISSUES.md`.
+Update the status in `docs/ISSUES.md` (and `Study-Buddy/docs/ROADMAP.md` if
+available). Add design issues to `ARCHITECTURE.md` / `ISSUES.md`.
