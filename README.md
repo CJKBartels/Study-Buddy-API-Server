@@ -24,7 +24,7 @@ flowchart LR
     Models --> DB[("MongoDB Atlas")]
 ```
 
-Every request passes through an access chain of middleware before it reaches a handler. Anything that goes wrong along the way is thrown as an `AppError`, and one error handler at the end turns it into the same JSON shape.
+Every request passes through an access chain of middleware before it reaches a handler. Errors thrown along the way end up in one error handler, which turns them into a single JSON shape.
 
 Sign-in issues a JWT and stores it on the user, which is what makes per-device sign-out possible:
 
@@ -103,7 +103,7 @@ Assignments are shared by the whole course. Any member can post one, and moderat
 
 So `AssignmentUserState` holds one document per (assignment, user) pair, with the state, personal notes, and a personal due date. A unique index on `(assignment, user)` makes duplicates impossible, and a single model method, `findOrCreate`, is the only code that creates these documents. It's an atomic upsert, so two first visits at the same moment still produce one document.
 
-**Tradeoff:** states are created lazily, so listing a course's assignments writes to the database the first time: one upsert per assignment. A read request that does writes gets slower as a course grows, and it can fail for write-side reasons. Embedding a progress array in each assignment would avoid this, but then every student's update would rewrite the same shared document.
+**Tradeoff:** every view of a user's assignments reads two collections and combines them in code. Embedding a progress array in each assignment would make that a single read, but then every student's update would rewrite the same shared document.
 
 ### Tokens live on the user so one device can sign out
 
@@ -111,7 +111,7 @@ A JWT stays valid until it expires, and the server has no built-in way to take o
 
 Every sign-in pushes its token onto `user.tokens`. The `auth` middleware accepts a token only if its signature checks out and it's still in that array. Signing out removes that one token, so signing out on your laptop leaves your phone signed in.
 
-**Tradeoff:** tokens never expire yet, so a leaked token stays valid until someone signs out on that device. [#13](https://github.com/CJKBartels/Study-Buddy-API-Server/issues/13) adds expiry and cleanup.
+**Tradeoff:** every authenticated request needs a database lookup to confirm the token is still on the user. That's the price of revocable tokens, and it's the main thing short-lived, lookup-free JWTs avoid.
 
 ### Access checks are a middleware chain that loads documents
 
@@ -129,9 +129,9 @@ Handlers trust what's on `req` instead of checking again.
 
 **Tradeoff:** the checks are written against Express's `req` and `res`, so a second way in can't reuse them. Real-time messaging over WebSockets will need them pulled out into plain functions that both paths call.
 
-### Every error has the same shape
+### Errors are defined in one place
 
-Routes throw `new AppError('COURSE_NOT_FOUND')`. The HTTP status and default message come from one registry (`src/assets/errorCodes.js`), and a single error middleware turns everything into this:
+Every error code, with its HTTP status and default message, lives in one registry (`src/assets/errorCodes.js`). A route reports a failure by throwing `new AppError('COURSE_NOT_FOUND')`, and a central error middleware turns thrown errors into one shape:
 
 ```json
 { "error": { "code": "COURSE_NOT_FOUND", "message": "Course does not exist" } }
@@ -139,11 +139,9 @@ Routes throw `new AppError('COURSE_NOT_FOUND')`. The HTTP status and default mes
 
 That includes errors the code never throws itself: Mongoose validation, cast, and duplicate-key errors, JWT errors, and malformed JSON. Express 5 forwards rejected async handlers to the error middleware, so routes don't need try/catch. The frontend can branch on `code` instead of parsing messages.
 
-**Tradeoff:** until [#3](https://github.com/CJKBartels/Study-Buddy-API-Server/issues/3) and [#4](https://github.com/CJKBartels/Study-Buddy-API-Server/issues/4) land, the session and availability routers still return the old mix of plain strings and ad-hoc JSON (one returns an emoji), so clients have to handle both shapes.
-
 ## Testing
 
-176 tests run with Vitest. Router tests drive the real Express app through supertest: create a user, sign in, use the token. So `auth` and the access chain run in every test, the same way they do in production.
+Model and integration tests run with Vitest. Router tests drive the real Express app through supertest: create a user, sign in, use the token. So `auth` and the access chain run in every test, the same way they do in production.
 
 The database is a real `mongod` that [mongodb-memory-server](https://github.com/typegoose/mongodb-memory-server) starts in memory. Tests never touch Atlas and need no setup, and every collection is wiped before each test.
 
@@ -166,7 +164,7 @@ npm install
 npm run dev            # starts on PORT from .env (3000 in the example)
 ```
 
-Interactive API docs (Swagger UI) are at `http://localhost:3000/api-docs`. The users, courses, and assignments routes are documented so far; [#5](https://github.com/CJKBartels/Study-Buddy-API-Server/issues/5) adds the rest.
+Interactive API docs (Swagger UI) are at `http://localhost:3000/api-docs`.
 
 ```sh
 npm test               # full suite once, no database needed
@@ -186,7 +184,7 @@ npm run lint
 
 ## Roadmap
 
-Work is tracked in the [Revamp milestone](https://github.com/CJKBartels/Study-Buddy-API-Server/milestone/1): moving the remaining routers to the shared error handling, a health check, rate limiting on auth, Docker, and a seed script for a live demo. Real-time session chat over WebSockets comes after that.
+Work is tracked in the [Revamp milestone](https://github.com/CJKBartels/Study-Buddy-API-Server/milestone/1). Real-time session chat over WebSockets comes after it.
 
 ## License
 
