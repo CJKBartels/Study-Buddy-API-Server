@@ -25,11 +25,11 @@ relying on it. Backend-only bug tracking is in `docs/ISSUES.md` (SB-n issues).
 ```sh
 npm run dev                 # env-cmd + nodemon on src/server.js (reads .env)
 npm start                   # node src/server.js
-npm test                    # vitest in watch mode
-npx vitest run              # run all tests once
-npx vitest run tests/routers/course.test.js   # one file
-npx vitest run -t "returns 201"               # tests whose name matches
-npx eslint .                # lint (no npm script; style: no semicolons, single quotes, 1tbs)
+npm test                    # run all tests once (same command CI runs)
+npm run test:watch          # vitest in watch mode
+npm test -- tests/routers/course.test.js      # one file
+npm test -- -t "returns 201"                  # tests whose name matches
+npm run lint                # eslint (style: no semicolons, single quotes, 1tbs)
 npm run api                 # serve the standalone swagger editor
 ```
 
