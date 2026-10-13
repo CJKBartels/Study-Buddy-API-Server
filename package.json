@@ -8,7 +8,9 @@
     "start": "node src/server.js",
     "dev": "env-cmd nodemon src/server.js",
     "api": "npx http-server node_modules/swagger-editor-dist",
-    "test": "vitest"
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint ."
   },
   "author": "",
   "license": "MIT",
