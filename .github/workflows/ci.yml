@@ -17,13 +17,6 @@ jobs:
           node-version: 24
           cache: npm
 
-      # mongodb-memory-server downloads a ~100 MB mongod binary on first use.
-      - name: Cache MongoDB binary
-        uses: actions/cache@v6
-        with:
-          path: ~/.cache/mongodb-binaries
-          key: mongodb-binaries-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
-
       - run: npm ci
       - run: npm run lint
       - run: npm test
