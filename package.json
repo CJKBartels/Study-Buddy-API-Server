@@ -23,7 +23,6 @@
     "vitest": "^4.1.9"
   },
   "dependencies": {
-    "@sendgrid/mail": "^8.1.6",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.5",
     "express": "^5.1.0",
