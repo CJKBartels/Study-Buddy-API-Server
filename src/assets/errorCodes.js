@@ -26,4 +26,9 @@ export const ERROR_CODES = Object.freeze({
     SESSION_NOT_FOUND: { status: 404, message: 'Session does not exist' },
     NOT_SESSION_PARTICIPANT: { status: 403, message: 'User is not a participant of session' },
     NOT_SESSION_HOST: { status: 403, message: 'User is not host of session' },
+    SESSION_NOT_OPEN: { status: 403, message: 'Session is invite only' },
+    NOT_INVITED: { status: 403, message: 'User was not invited to session' },
+    ALREADY_PARTICIPANT: { status: 409, message: 'User is already a participant' },
+    INVALID_STATUS_CHANGE: { status: 409, message: 'Participant status cannot change this way' },
+    PARTICIPANT_NOT_FOUND: { status: 404, message: 'User is not part of session' },
 })
