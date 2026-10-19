@@ -23,4 +23,7 @@ export const ERROR_CODES = Object.freeze({
     NOT_COURSE_ADMIN: { status: 403, message: 'User is not an admin of course' },
     NOT_COURSE_MODERATOR: { status: 403, message: 'User is not a moderator of course' },
     COURSE_BANNED: { status: 403, message: 'User has been banned from course' },
+    SESSION_NOT_FOUND: { status: 404, message: 'Session does not exist' },
+    NOT_SESSION_PARTICIPANT: { status: 403, message: 'User is not a participant of session' },
+    NOT_SESSION_HOST: { status: 403, message: 'User is not host of session' },
 })

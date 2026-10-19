@@ -1,20 +1,19 @@
 import { isValidObjectId } from 'mongoose'
 import Session from '../models/session.js'
 import SessionParticipant from '../models/sessionParticipant.js'
+import AppError from '../assets/AppError.js'
 
 export const isSession = async (req, res, next) => {
     const { params } = req
 
     if (!isValidObjectId(params.sessionId)) {
-        res.status(400).send('Invalid ObjectId for Session')
-        return
+        return next(new AppError('BAD_REQUEST', { message: 'Invalid session id' }))
     }
 
     const session = await Session.findOne({ _id: params.sessionId, course: req.course._id })
 
     if (!session) {
-        res.status(404).send('Session does not exist')
-        return
+        return next(new AppError('SESSION_NOT_FOUND'))
     }
 
     req.session = session
@@ -23,16 +22,10 @@ export const isSession = async (req, res, next) => {
 }
 
 export const isSessionParticipant = async (req, res, next) => {
-    const membership = await SessionParticipant.findOne({ session: req.params.sessionId, user: req.user._id })
+    const participant = await SessionParticipant.findOne({ session: req.session._id, user: req.user._id })
 
-    if (!membership) {
-        res.status(403).send('User is not a participant of session')
-        return
-    }
-
-    if (membership.status != 'accepted') {
-        res.status(403).send('User is not a participant of session')
-        return
+    if (participant?.status !== 'accepted') {
+        return next(new AppError('NOT_SESSION_PARTICIPANT'))
     }
 
     next()
@@ -40,8 +33,7 @@ export const isSessionParticipant = async (req, res, next) => {
 
 export const isSessionHost = async (req, res, next) => {
     if (!req.session.host.equals(req.user._id)) {
-        res.status(403).send('User is not host of session')
-        return
+        return next(new AppError('NOT_SESSION_HOST'))
     }
 
     next()
