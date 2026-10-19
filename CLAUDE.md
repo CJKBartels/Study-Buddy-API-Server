@@ -71,18 +71,19 @@ user; RSVP and join can't promote a waitlisted user).
 `user.tokens`. `auth` requires the token to still be in that array, so sign-out
 works by removing it.
 
-**Errors: one envelope, central handler (migration in progress).** Throw
+**Errors: one envelope, central handler.** Throw
 `new AppError('CODE', { message?, details? })` (`src/assets/AppError.js`). Status
 and default message come from `src/assets/errorCodes.js`. Add new codes there.
 `middleware/errorHandler.js` (mounted last) turns every error into
 `{ error: { code, message, details? } }`, including Mongoose
 validation/cast/duplicate-key errors and JWT errors. Express 5 forwards rejected
-async handlers automatically, so routes just `throw` without try/catch.
-- Migrated: `user`, `course`, `assignments`, `session` routers; `auth`,
-  `courseAccess`, `assignmentAccess`, `sessionAccess` middleware.
-- **Not yet migrated** (still `res.status(...).send(...)` with mixed shapes):
-  the `availability` router. When you touch it, convert to `AppError`.
-  `src/assets/error.js` (`sendValidationError`) is the legacy helper.
+async handlers automatically, so routes just `throw` without try/catch. Every
+router and access middleware uses this; don't send error responses by hand.
+
+**Validate before upserting.** Mongoose updates (`updateOne`,
+`findOneAndUpdate`) skip most schema rules and can't run validators that compare
+two fields. When a write must be an upsert, validate an unsaved draft first
+(`new Model(data).validate()`), then upsert. See `PUT /availability/me`.
 
 **Global Mongoose schema settings.** `db/mongoose.js` makes every String field
 trimmed and rejects empty strings. `tests/setup.js` repeats these settings

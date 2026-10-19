@@ -3,6 +3,14 @@
 Design decisions and lessons from working in this codebase.
 Newest entries at the top.
 
+## 2026-10-19 — Availability: validate a draft, then upsert
+
+- **Task:** move the availability router to `AppError` (#4). A probe showed `PUT /availability/me` saved anything (day 9, blocks ending before they start, `Mars/Olympus`).
+- **Decision:** validate an unsaved draft with `new Availability(data).validate()`, then write with one `findOneAndUpdate` upsert. Merge overlapping and touching blocks with a plain `mergeBlocks` function after validation.
+- **Alternatives considered:** `runValidators: true` on the update (update validators only check fields in the update, and `this` is the query, so "end after start" can't see `startMin`); load or create, then `save()` (full validation, but `findOne` then create on a unique index races).
+- **Lesson:** an update is not a save. Mongoose runs the full schema only on document validation. If code writes through updates, it has to validate some other way, or the schema's rules are decoration. Test validation by sending bad data, not by reading the schema.
+- **Revisit:** overlapping blocks merge silently; the client sees the merged result in the response.
+
 ## 2026-10-19 — Session router: central errors and a participant state machine
 
 - **Task:** move the session router and `sessionAccess` to `AppError` (#3) and fix 6 bugs found in review.
