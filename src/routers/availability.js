@@ -1,6 +1,6 @@
 import Router from 'express'
 import auth from '../middleware/auth.js'
-import Availability from '../models/availability.js'
+import Availability, { mergeBlocks } from '../models/availability.js'
 import AppError from '../assets/AppError.js'
 
 const router = new Router()
@@ -32,7 +32,8 @@ router.put('/availability/me', auth, async (req, res) => {
 
     const availability = await Availability.findOneAndUpdate(
         { user: user._id },
-        { timezone: draft.timezone, blocks: draft.blocks },
+        // Merge after validating, so invalid blocks are rejected, not merged
+        { timezone: draft.timezone, blocks: mergeBlocks(draft.blocks) },
         { upsert: true, new: true }
     )
 
