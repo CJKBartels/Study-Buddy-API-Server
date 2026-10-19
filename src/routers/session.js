@@ -36,7 +36,39 @@ const statusIfAccepting = async (session) => {
     return accepted < session.capacity ? 'accepted' : 'waitlisted'
 }
 
-//Create Session
+/**
+ * Create Session
+ *
+ * @openapi
+ * /courses/{courseId}/sessions:
+ *   post:
+ *     summary: Create a session
+ *     description: The creator becomes the host and an accepted participant. Server-set fields (course, host, timezone, status) are rejected.
+ *     tags: [Sessions]
+ *     parameters:
+ *       - $ref: '#/components/parameters/CourseId'
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/SessionCreateRequest'
+ *     responses:
+ *       201:
+ *         description: The created session
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Session'
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       403:
+ *         $ref: '#/components/responses/Forbidden'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ */
 router.post('/courses/:courseId/sessions', auth, isCourse, isCourseMember, async (req, res) => {
     const { body, course, user } = req
 
@@ -67,7 +99,58 @@ router.post('/courses/:courseId/sessions', auth, isCourse, isCourseMember, async
     res.status(201).send(session)
 })
 
-//Get Sessions
+/**
+ * Get Sessions
+ *
+ * @openapi
+ * /courses/{courseId}/sessions:
+ *   get:
+ *     summary: List sessions in a course
+ *     description: Sorted by start time. Only scheduled sessions unless `status` says otherwise.
+ *     tags: [Sessions]
+ *     parameters:
+ *       - $ref: '#/components/parameters/CourseId'
+ *       - in: query
+ *         name: mine
+ *         schema:
+ *           type: boolean
+ *         description: Only sessions you host
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [scheduled, cancelled]
+ *           default: scheduled
+ *       - in: query
+ *         name: from
+ *         schema:
+ *           type: string
+ *           format: date-time
+ *         description: Sessions starting at or after this time
+ *       - in: query
+ *         name: to
+ *         schema:
+ *           type: string
+ *           format: date-time
+ *         description: Sessions starting at or before this time
+ *     responses:
+ *       200:
+ *         description: Array of sessions
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/Session'
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       403:
+ *         $ref: '#/components/responses/Forbidden'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ */
 router.get('/courses/:courseId/sessions', auth, isCourse, isCourseMember, async (req, res) => {
     const { user, course, query } = req
     let filter = { course: course._id }
@@ -94,12 +177,70 @@ router.get('/courses/:courseId/sessions', auth, isCourse, isCourseMember, async 
     res.status(200).send(sessions)
 })
 
-//Get Session
+/**
+ * Get Session
+ *
+ * @openapi
+ * /courses/{courseId}/sessions/{sessionId}:
+ *   get:
+ *     summary: Get a session
+ *     tags: [Sessions]
+ *     parameters:
+ *       - $ref: '#/components/parameters/CourseId'
+ *       - $ref: '#/components/parameters/SessionId'
+ *     responses:
+ *       200:
+ *         description: The session
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Session'
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       403:
+ *         $ref: '#/components/responses/Forbidden'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ */
 router.get('/courses/:courseId/sessions/:sessionId', auth, isCourse, isCourseMember, isSession, async (req, res) => {
     res.status(200).send(req.session)
 })
 
-//Edit Session
+/**
+ * Edit Session
+ *
+ * @openapi
+ * /courses/{courseId}/sessions/{sessionId}:
+ *   patch:
+ *     summary: Edit a session (host only)
+ *     tags: [Sessions]
+ *     parameters:
+ *       - $ref: '#/components/parameters/CourseId'
+ *       - $ref: '#/components/parameters/SessionId'
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/SessionPatchRequest'
+ *     responses:
+ *       200:
+ *         description: The updated session
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Session'
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       403:
+ *         $ref: '#/components/responses/Forbidden'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ */
 router.patch('/courses/:courseId/sessions/:sessionId',
     auth, isCourse, isCourseMember, isSession, isSessionHost,
     async (req, res) => {
@@ -125,7 +266,35 @@ router.patch('/courses/:courseId/sessions/:sessionId',
     }
 )
 
-//Cancel Session
+/**
+ * Cancel Session
+ *
+ * @openapi
+ * /courses/{courseId}/sessions/{sessionId}:
+ *   delete:
+ *     summary: Cancel a session (host only)
+ *     description: Sets status to cancelled; the session is kept.
+ *     tags: [Sessions]
+ *     parameters:
+ *       - $ref: '#/components/parameters/CourseId'
+ *       - $ref: '#/components/parameters/SessionId'
+ *     responses:
+ *       200:
+ *         description: Cancelled
+ *         content:
+ *           text/plain:
+ *             schema:
+ *               type: string
+ *               example: Session Cancelled Successfully
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       403:
+ *         $ref: '#/components/responses/Forbidden'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ */
 router.delete('/courses/:courseId/sessions/:sessionId',
     auth, isCourse, isCourseMember, isSession, isSessionHost,
     async (req, res) => {
@@ -138,7 +307,56 @@ router.delete('/courses/:courseId/sessions/:sessionId',
     }
 )
 
-//Get Session Participants
+/**
+ * Get Session Participants
+ *
+ * @openapi
+ * /courses/{courseId}/sessions/{sessionId}/participants:
+ *   get:
+ *     summary: List participants (participants only)
+ *     tags: [Sessions]
+ *     parameters:
+ *       - $ref: '#/components/parameters/CourseId'
+ *       - $ref: '#/components/parameters/SessionId'
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [invited, accepted, declined, waitlisted, removed, left]
+ *         description: Only participants with this status
+ *     responses:
+ *       200:
+ *         description: Array of participants, with usernames
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ *                 properties:
+ *                   _id:
+ *                     type: string
+ *                   user:
+ *                     type: object
+ *                     properties:
+ *                       _id:
+ *                         type: string
+ *                       username:
+ *                         type: string
+ *                   invitedBy:
+ *                     type: string
+ *                   respondedAt:
+ *                     type: string
+ *                     format: date-time
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       403:
+ *         $ref: '#/components/responses/Forbidden'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ */
 router.get('/courses/:courseId/sessions/:sessionId/participants',
     auth, isCourse, isCourseMember, isSession, isSessionParticipant,
     async (req, res) => {
@@ -159,7 +377,46 @@ router.get('/courses/:courseId/sessions/:sessionId/participants',
     }
 )
 
-//Invite User
+/**
+ * Invite User
+ *
+ * @openapi
+ * /courses/{courseId}/sessions/{sessionId}/invites:
+ *   post:
+ *     summary: Invite one course member (participants only)
+ *     description: One invite per request; send one request per person to invite a group. Users who declined or left can be invited again. Only the host can re-invite a removed user.
+ *     tags: [Sessions]
+ *     parameters:
+ *       - $ref: '#/components/parameters/CourseId'
+ *       - $ref: '#/components/parameters/SessionId'
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [userId]
+ *             properties:
+ *               userId:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: The invited participant
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/SessionParticipant'
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       403:
+ *         $ref: '#/components/responses/Forbidden'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ *       409:
+ *         $ref: '#/components/responses/Conflict'
+ */
 // One invite per request. To invite a group, the client sends one request per
 // person, so every success and failure uses the normal response shapes.
 router.post('/courses/:courseId/sessions/:sessionId/invites',
@@ -209,7 +466,36 @@ router.post('/courses/:courseId/sessions/:sessionId/invites',
     }
 )
 
-//Join Open Session
+/**
+ * Join Open Session
+ *
+ * @openapi
+ * /courses/{courseId}/sessions/{sessionId}/join:
+ *   post:
+ *     summary: Join an open session
+ *     description: Accepts a pending invite too. When the session is full, the participant is waitlisted instead of accepted.
+ *     tags: [Sessions]
+ *     parameters:
+ *       - $ref: '#/components/parameters/CourseId'
+ *       - $ref: '#/components/parameters/SessionId'
+ *     responses:
+ *       200:
+ *         description: The participant (status accepted or waitlisted)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/SessionParticipant'
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       403:
+ *         $ref: '#/components/responses/Forbidden'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ *       409:
+ *         $ref: '#/components/responses/Conflict'
+ */
 router.post('/courses/:courseId/sessions/:sessionId/join',
     auth, isCourse, isCourseMember, isSession,
     async (req, res) => {
@@ -249,7 +535,44 @@ router.post('/courses/:courseId/sessions/:sessionId/join',
     }
 )
 
-//RSVP
+/**
+ * RSVP
+ *
+ * @openapi
+ * /courses/{courseId}/sessions/{sessionId}/participants/me/{decision}:
+ *   patch:
+ *     summary: Answer an invite
+ *     description: Only works while invited. Accepting a full session waitlists you.
+ *     tags: [Sessions]
+ *     parameters:
+ *       - $ref: '#/components/parameters/CourseId'
+ *       - $ref: '#/components/parameters/SessionId'
+ *       - in: path
+ *         name: decision
+ *         required: true
+ *         schema:
+ *           type: string
+ *           enum: ['true', 'false']
+ *         description: "'true' accepts; anything else declines"
+ *     responses:
+ *       200:
+ *         description: Answer recorded
+ *         content:
+ *           text/plain:
+ *             schema:
+ *               type: string
+ *               example: User has joined the session
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       403:
+ *         $ref: '#/components/responses/Forbidden'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ *       409:
+ *         $ref: '#/components/responses/Conflict'
+ */
 router.patch('/courses/:courseId/sessions/:sessionId/participants/me/:decision',
     auth, isCourse, isCourseMember, isSession,
     async (req, res) => {
@@ -285,7 +608,37 @@ router.patch('/courses/:courseId/sessions/:sessionId/participants/me/:decision',
     }
 )
 
-//Remove Participant
+/**
+ * Remove Participant
+ *
+ * @openapi
+ * /courses/{courseId}/sessions/{sessionId}/participants/{userId}:
+ *   delete:
+ *     summary: Remove a participant (host only)
+ *     description: The host cannot remove themselves.
+ *     tags: [Sessions]
+ *     parameters:
+ *       - $ref: '#/components/parameters/CourseId'
+ *       - $ref: '#/components/parameters/SessionId'
+ *       - $ref: '#/components/parameters/UserId'
+ *     responses:
+ *       200:
+ *         description: The participant, now removed
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/SessionParticipant'
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       403:
+ *         $ref: '#/components/responses/Forbidden'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ *       409:
+ *         $ref: '#/components/responses/Conflict'
+ */
 router.delete('/courses/:courseId/sessions/:sessionId/participants/:userId',
     auth, isCourse, isCourseMember, isSession, isSessionHost,
     async (req, res) => {
@@ -309,7 +662,43 @@ router.delete('/courses/:courseId/sessions/:sessionId/participants/:userId',
     }
 )
 
-//Send Message
+/**
+ * Send Message
+ *
+ * @openapi
+ * /courses/{courseId}/sessions/{sessionId}/messages:
+ *   post:
+ *     summary: Send a message (participants only)
+ *     tags: [Sessions]
+ *     parameters:
+ *       - $ref: '#/components/parameters/CourseId'
+ *       - $ref: '#/components/parameters/SessionId'
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [message]
+ *             properties:
+ *               message:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: The sent message
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/SessionMessage'
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       403:
+ *         $ref: '#/components/responses/Forbidden'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ */
 router.post('/courses/:courseId/sessions/:sessionId/messages',
     auth, isCourse, isCourseMember, isSession, isSessionParticipant,
     async (req, res) => {
@@ -326,7 +715,61 @@ router.post('/courses/:courseId/sessions/:sessionId/messages',
     }
 )
 
-//Get Messages
+/**
+ * Get Messages
+ *
+ * @openapi
+ * /courses/{courseId}/sessions/{sessionId}/messages:
+ *   get:
+ *     summary: Get message history (participants only)
+ *     description: Oldest first. Deleted messages are left out.
+ *     tags: [Sessions]
+ *     parameters:
+ *       - $ref: '#/components/parameters/CourseId'
+ *       - $ref: '#/components/parameters/SessionId'
+ *       - in: query
+ *         name: after
+ *         schema:
+ *           type: string
+ *           format: date-time
+ *         description: Messages sent at or after this time
+ *       - in: query
+ *         name: before
+ *         schema:
+ *           type: string
+ *           format: date-time
+ *         description: Messages sent at or before this time
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 100
+ *           default: 50
+ *       - in: query
+ *         name: offset
+ *         schema:
+ *           type: integer
+ *           minimum: 0
+ *           default: 0
+ *     responses:
+ *       200:
+ *         description: Array of messages
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/SessionMessage'
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       403:
+ *         $ref: '#/components/responses/Forbidden'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ */
 router.get('/courses/:courseId/sessions/:sessionId/messages',
     auth, isCourse, isCourseMember, isSession, isSessionParticipant,
     async (req, res) => {
@@ -361,7 +804,44 @@ router.get('/courses/:courseId/sessions/:sessionId/messages',
     }
 )
 
-//Edit Messages
+/**
+ * Edit Messages
+ *
+ * @openapi
+ * /courses/{courseId}/sessions/{sessionId}/messages/{messageId}:
+ *   patch:
+ *     summary: Edit your message
+ *     tags: [Sessions]
+ *     parameters:
+ *       - $ref: '#/components/parameters/CourseId'
+ *       - $ref: '#/components/parameters/SessionId'
+ *       - $ref: '#/components/parameters/MessageId'
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [message]
+ *             properties:
+ *               message:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: The edited message
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/SessionMessage'
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       403:
+ *         $ref: '#/components/responses/Forbidden'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ */
 router.patch('/courses/:courseId/sessions/:sessionId/messages/:messageId',
     auth, isCourse, isCourseMember, isSession, isSessionParticipant,
     async (req, res) => {
@@ -385,7 +865,36 @@ router.patch('/courses/:courseId/sessions/:sessionId/messages/:messageId',
     }
 )
 
-// Delete Message
+/**
+ * Delete Message
+ *
+ * @openapi
+ * /courses/{courseId}/sessions/{sessionId}/messages/{messageId}:
+ *   delete:
+ *     summary: Delete a message (sender or host)
+ *     description: Soft delete. The message is hidden from history but kept in the database.
+ *     tags: [Sessions]
+ *     parameters:
+ *       - $ref: '#/components/parameters/CourseId'
+ *       - $ref: '#/components/parameters/SessionId'
+ *       - $ref: '#/components/parameters/MessageId'
+ *     responses:
+ *       200:
+ *         description: Deleted
+ *         content:
+ *           text/plain:
+ *             schema:
+ *               type: string
+ *               example: Message deleted successfully
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       403:
+ *         $ref: '#/components/responses/Forbidden'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ */
 router.delete('/courses/:courseId/sessions/:sessionId/messages/:messageId',
     auth, isCourse, isCourseMember, isSession, isSessionParticipant,
     async (req, res) => {
