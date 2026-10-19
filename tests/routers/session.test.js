@@ -477,6 +477,16 @@ describe('PATCH /courses/:courseId/sessions/:sessionId/messages/:messageId', () 
         expect(res.body.error.code).toBe('CANNOT_MODIFY_MESSAGE')
     })
 
+    it('returns 404 MESSAGE_NOT_FOUND when the message belongs to another session', async () => {
+        const { member, course, base: sessionA } = await chattingPair()
+        const sessionB = (await createSession(member.token, course._id)).body
+        const sent = await sendMessage(member.token, `/courses/${course._id}/sessions/${sessionB._id}`, 'in B')
+
+        const res = await call('patch', member.token, `${sessionA}/messages/${sent.body._id}`).send({ message: 'edited via A' })
+        expect(res.status).toBe(404)
+        expect(res.body.error.code).toBe('MESSAGE_NOT_FOUND')
+    })
+
     it('returns 404 MESSAGE_NOT_FOUND for an unknown message', async () => {
         const { member, base } = await chattingPair()
         const res = await call('patch', member.token, `${base}/messages/${NON_EXISTENT_ID}`).send({ message: 'x' })
@@ -506,6 +516,20 @@ describe('DELETE /courses/:courseId/sessions/:sessionId/messages/:messageId', ()
         const res = await call('delete', member.token, `${base}/messages/${sent.body._id}`)
         expect(res.status).toBe(403)
         expect(res.body.error.code).toBe('CANNOT_MODIFY_MESSAGE')
+    })
+
+    it('returns 404 MESSAGE_NOT_FOUND when a host targets a message from another session', async () => {
+        // host hosts session A; member hosts session B in the same course
+        const { host, member, course, base: sessionA } = await chattingPair()
+        const sessionB = (await createSession(member.token, course._id)).body
+        const sent = await sendMessage(member.token, `/courses/${course._id}/sessions/${sessionB._id}`, 'in B')
+
+        const res = await call('delete', host.token, `${sessionA}/messages/${sent.body._id}`)
+        expect(res.status).toBe(404)
+        expect(res.body.error.code).toBe('MESSAGE_NOT_FOUND')
+
+        const history = await call('get', member.token, `/courses/${course._id}/sessions/${sessionB._id}/messages`)
+        expect(history.body).toHaveLength(1)
     })
 
     it('returns 404 MESSAGE_NOT_FOUND when deleting twice', async () => {
