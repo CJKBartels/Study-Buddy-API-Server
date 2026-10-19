@@ -36,7 +36,7 @@ sessionParticipantSchema.index({ session: 1, user: 1 }, { unique: true })
 // Who may make a change (e.g. only the host re-invites a removed user) is
 // checked by the route, since the table only knows statuses.
 const ALLOWED_MOVES = Object.freeze({
-    invited: ['accepted', 'declined', 'removed'],
+    invited: ['accepted', 'waitlisted', 'declined', 'removed'],
     accepted: ['left', 'removed'],
     declined: ['invited'],
     left: ['invited'],

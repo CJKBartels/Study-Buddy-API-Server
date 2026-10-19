@@ -21,6 +21,21 @@ const assertCanMove = (participant, status) => {
     }
 }
 
+// The status someone gets for saying yes: accepted while there is room,
+// waitlisted once the session is full. No capacity means no limit.
+// Known race: count-then-write, so two people taking the last spot at the
+// same moment can overbook by one. Accepted on purpose: an atomic counter on
+// Session would have to be kept in sync on every path that changes who is
+// accepted, and one missed path would make sessions look full when they aren't.
+const statusIfAccepting = async (session) => {
+    if (session.capacity == null) {
+        return 'accepted'
+    }
+
+    const accepted = await SessionParticipant.countDocuments({ session: session._id, status: 'accepted' })
+    return accepted < session.capacity ? 'accepted' : 'waitlisted'
+}
+
 //Create Session
 router.post('/courses/:courseId/sessions', auth, isCourse, isCourseMember, async (req, res) => {
     const { body, course, user } = req
@@ -204,24 +219,28 @@ router.post('/courses/:courseId/sessions/:sessionId/join',
             throw new AppError('SESSION_NOT_OPEN')
         }
 
+        const status = await statusIfAccepting(session)
+
         // Atomic upsert: creates the participant if absent, otherwise returns the
         // existing doc untouched. updatedExisting tells the two cases apart.
         // Must stay $setOnInsert, not $set: $set would write 'accepted' onto an
         // existing doc (e.g. a removed user) before the table check below runs.
         const result = await SessionParticipant.findOneAndUpdate(
             { session: session._id, user: user._id },
-            { $setOnInsert: { status: 'accepted', respondedAt: new Date() } },
+            { $setOnInsert: { status, respondedAt: new Date() } },
             { upsert: true, new: true, includeResultMetadata: true }
         )
         const participant = result.value
 
         if (result.lastErrorObject.updatedExisting) {
-            if (participant.status === 'accepted') {
-                throw new AppError('ALREADY_PARTICIPANT')
+            // waitlisted is refused here too: the table's waitlisted -> accepted
+            // is for the server promoting someone, not for joining again.
+            if (['accepted', 'waitlisted'].includes(participant.status)) {
+                throw new AppError('ALREADY_PARTICIPANT', { message: `User is already ${participant.status}` })
             }
-            assertCanMove(participant, 'accepted')
+            assertCanMove(participant, status)
 
-            participant.status = 'accepted'
+            participant.status = status
             participant.respondedAt = new Date()
             await participant.save()
         }
@@ -242,9 +261,9 @@ router.patch('/courses/:courseId/sessions/:sessionId/participants/me/:decision',
             throw new AppError('NOT_INVITED')
         }
 
-        const status = params.decision === 'true' ? 'accepted' : 'declined'
+        const accepting = params.decision === 'true'
 
-        if (status === 'accepted' && participant.status === 'accepted') {
+        if (accepting && participant.status === 'accepted') {
             throw new AppError('ALREADY_PARTICIPANT')
         }
 
@@ -252,8 +271,10 @@ router.patch('/courses/:courseId/sessions/:sessionId/participants/me/:decision',
         // but only so the server can promote someone when a spot opens. Without
         // this check, a waitlisted user could RSVP "true" and skip the line.
         if (participant.status !== 'invited') {
-            throw statusChangeError(participant, status)
+            throw statusChangeError(participant, accepting ? 'accepted' : 'declined')
         }
+
+        const status = accepting ? await statusIfAccepting(session) : 'declined'
         assertCanMove(participant, status)
 
         participant.status = status
