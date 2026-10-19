@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import request from 'supertest'
+import mongoose from 'mongoose'
 import app from '../../src/app.js'
+import SessionMessage from '../../src/models/sessionMessage.js'
 
 const NON_EXISTENT_ID = '000000000000000000000001'
 
@@ -442,6 +444,28 @@ describe('GET /courses/:courseId/sessions/:sessionId/messages', () => {
         const res = await call('get', host.token, `${base}/messages`)
         expect(res.status).toBe(200)
         expect(res.body.map((m) => m.body)).toEqual(['one', 'two', 'three'])
+    })
+
+    it('returns messages oldest first, regardless of storage order', async () => {
+        const { host, member, course, session, base } = await chattingPair()
+        // Inserted through the raw driver (bypassing the API and Mongoose
+        // timestamps) so storage order and sentAt order disagree. Through the
+        // API, insertion order usually matches sentAt and hides the bug.
+        const message = (body, sentAt) => ({
+            session: new mongoose.Types.ObjectId(session._id),
+            course: new mongoose.Types.ObjectId(course._id),
+            sender: new mongoose.Types.ObjectId(member.user._id),
+            body,
+            edited: false,
+            sentAt: new Date(sentAt)
+        })
+        await SessionMessage.collection.insertMany([
+            message('later', '2030-05-01T18:05:00.000Z'),
+            message('earlier', '2030-05-01T18:00:00.000Z')
+        ])
+
+        const res = await call('get', host.token, `${base}/messages`)
+        expect(res.body.map((m) => m.body)).toEqual(['earlier', 'later'])
     })
 
     it('pages with limit and offset', async () => {

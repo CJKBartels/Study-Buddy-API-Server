@@ -314,7 +314,12 @@ router.get('/courses/:courseId/sessions/:sessionId/messages',
 
         const offset = Math.max(0, parseInt(query?.offset) || 0)
         const limit = Math.min(100, Math.max(1, parseInt(query?.limit) || 50))
-        const messages = await SessionMessage.find(filter).skip(offset).limit(limit)
+        // _id breaks ties between messages sent in the same millisecond, so
+        // pages never overlap or skip a message
+        const messages = await SessionMessage.find(filter)
+            .sort({ sentAt: 1, _id: 1 })
+            .skip(offset)
+            .limit(limit)
 
         res.status(200).send(messages)
     }
