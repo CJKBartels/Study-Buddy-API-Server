@@ -6,6 +6,7 @@ import { isSession, isSessionHost, isSessionParticipant } from '../middleware/se
 import SessionParticipant from '../models/sessionParticipant.js'
 import { isValidObjectId } from 'mongoose'
 import SessionMessage from '../models/sessionMessage.js'
+import AppError from '../assets/AppError.js'
 
 const router = new Router()
 
@@ -58,19 +59,8 @@ router.get('/courses/:courseId/sessions', auth, isCourse, isCourseMember, async 
 })
 
 //Get Session
-router.get('/courses/:courseId/sessions/:sessionId', auth, isCourse, isCourseMember, async (req, res) => {
-    try {
-        const session = await Session.findOne({ _id: req.params.sessionId, course: req.course._id })
-
-        if (!session) {
-            return res.status(404).send({ error: 'Session not found' })
-        }
-
-        res.status(200).send(session)
-    } catch (error) {
-        console.log(error)
-        res.status(500).send({ error: 'Internal server error' })
-    }
+router.get('/courses/:courseId/sessions/:sessionId', auth, isCourse, isCourseMember, isSession, async (req, res) => {
+    res.status(200).send(req.session)
 })
 
 //Edit Session
@@ -80,7 +70,7 @@ router.patch('/courses/:courseId/sessions/:sessionId',
         const { body: mods, session } = req
 
         if (Object.keys(mods).length === 0) {
-            return res.status(400).send({ error: 'Missing updates' })
+            throw new AppError('INVALID_UPDATES', { message: 'Missing updates' })
         }
 
         const props = Object.keys(mods)
@@ -89,7 +79,7 @@ router.patch('/courses/:courseId/sessions/:sessionId',
         const isValid = props.every((prop) => modifiable.includes(prop))
 
         if (!isValid) {
-            return res.status(400).send({ error: 'Invalid updates.' })
+            throw new AppError('INVALID_UPDATES')
         }
 
         props.forEach((prop) => session[prop] = mods[prop])
@@ -103,17 +93,12 @@ router.patch('/courses/:courseId/sessions/:sessionId',
 router.delete('/courses/:courseId/sessions/:sessionId',
     auth, isCourse, isCourseMember, isSession, isSessionHost,
     async (req, res) => {
-        try {
-            const { session } = req
+        const { session } = req
 
-            session.status = 'cancelled'
-            await session.save()
+        session.status = 'cancelled'
+        await session.save()
 
-            res.status(200).send('Session Cancelled Successfully')
-        } catch (error) {
-            console.log(error)
-            res.status(500).send('🤷‍♂️')
-        }
+        res.status(200).send('Session Cancelled Successfully')
     }
 )
 
