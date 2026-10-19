@@ -279,19 +279,14 @@ router.post('/courses/:courseId/sessions/:sessionId/messages',
     async (req, res) => {
         const { body, user, session, course } = req
 
-        const data = {
+        const message = await SessionMessage.create({
             session: session._id,
             sender: user._id,
             course: course._id,
             body: body.message
-        }
+        })
 
-        try {
-            const message = await SessionMessage.create(data)
-            res.status(201).send(message)
-        } catch (error) {
-            res.status(500).json(error)
-        }
+        res.status(201).send(message)
     }
 )
 
@@ -317,14 +312,11 @@ router.get('/courses/:courseId/sessions/:sessionId/messages',
             filter.sentAt = sentAt
         }
 
-        try {
-            const offset = Math.max(0, parseInt(query?.offset) || 0)
-            const limit = Math.min(100, Math.max(1, parseInt(query?.limit) || 50))
-            const messages = await SessionMessage.find(filter).skip(offset).limit(limit)
-            res.status(200).send(messages)
-        } catch (error) {
-            res.status(500).json(error)
-        }
+        const offset = Math.max(0, parseInt(query?.offset) || 0)
+        const limit = Math.min(100, Math.max(1, parseInt(query?.limit) || 50))
+        const messages = await SessionMessage.find(filter).skip(offset).limit(limit)
+
+        res.status(200).send(messages)
     }
 )
 
@@ -337,24 +329,18 @@ router.patch('/courses/:courseId/sessions/:sessionId/messages/:messageId',
         const message = await SessionMessage.findOne({ _id: params.messageId })
 
         if (!message || message.deletedAt) {
-            res.status(404).send('Message does not exist')
-            return
+            throw new AppError('MESSAGE_NOT_FOUND')
         }
 
         if (!user._id.equals(message.sender)) {
-            res.status(403).send('User cannot edit messages they did not send')
-            return
+            throw new AppError('CANNOT_MODIFY_MESSAGE', { message: 'User cannot edit messages they did not send' })
         }
 
         message.edited = true
         message.body = body.message
+        await message.save()
 
-        try {
-            await message.save()
-            res.status(200).send(message)
-        } catch (error) {
-            res.status(500).json(error)
-        }
+        res.status(200).send(message)
     }
 )
 
@@ -367,29 +353,21 @@ router.delete('/courses/:courseId/sessions/:sessionId/messages/:messageId',
         const message = await SessionMessage.findOne({ _id: params.messageId })
 
         if (!message) {
-            res.status(404).send('Message does not exist')
-            return
+            throw new AppError('MESSAGE_NOT_FOUND')
         }
 
         if (!user._id.equals(message.sender) && !user._id.equals(session.host)) {
-            res.status(403).send('User cannot delete this message')
-            return
+            throw new AppError('CANNOT_MODIFY_MESSAGE', { message: 'User cannot delete this message' })
         }
 
         if (message.deletedAt) {
-            res.status(404).send('Message already deleted')
-            return
+            throw new AppError('MESSAGE_NOT_FOUND', { message: 'Message already deleted' })
         }
 
         message.deletedAt = new Date()
+        await message.save()
 
-        try {
-            await message.save()
-            res.status(200).send('Message deleted successfully')
-        } catch (error) {
-            res.status(500).json(error)
-        }
-
+        res.status(200).send('Message deleted successfully')
     }
 )
 
