@@ -7,6 +7,9 @@ import { randomUUID } from 'crypto'
 
 const { sign } = jwt
 
+// How long a sign-in lasts before the user has to sign in again
+const TOKEN_LIFETIME = '7d'
+
 const userSchema = new Schema({
     username: {
         type: String,
@@ -37,7 +40,10 @@ const userSchema = new Schema({
         token: {
             type: String,
             required: false
-        }
+        },
+        // Copy of the token's own expiry, so expired tokens can be found
+        // with a query instead of decoding every stored token
+        expiresAt: Date
     }],
 
     timezone: {
@@ -64,13 +70,17 @@ userSchema.methods.toJSON = function () {
 userSchema.methods.generateAuthToken = async function () {
     // jwtid gives every token a unique id, so two sign-ins in the same second
     // don't produce the same token (signing out of one would end both)
-    const token = sign({ _id: this._id.toString() }, process.env.JSON_WEB_TOKEN_SECRET, { jwtid: randomUUID() })
+    const token = sign({ _id: this._id.toString() }, process.env.JSON_WEB_TOKEN_SECRET, {
+        jwtid: randomUUID(),
+        expiresIn: TOKEN_LIFETIME
+    })
+    const expiresAt = new Date(jwt.decode(token).exp * 1000)
 
     // $push adds the token without reading the list first. concat + save()
     // replaced the whole list, so simultaneous sign-ins overwrote each other.
     // The in-memory doc is left alone on purpose: changing it would make a
     // later save() on this doc write the whole list back.
-    await User.updateOne({ _id: this._id }, { $push: { tokens: { token } } })
+    await User.updateOne({ _id: this._id }, { $push: { tokens: { token, expiresAt } } })
 
     return token
 }

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import request from 'supertest'
+import jwt from 'jsonwebtoken'
 import User from '../../src/models/user.js'
 import app from '../../src/app.js'
 
@@ -148,6 +149,47 @@ describe('GET /users/me', () => {
         const res = await request(app)
             .get('/users/me')
             .set('Authorization', `Bearer ${token}`)
+        expect(res.status).toBe(401)
+        expect(res.body.error.code).toBe('UNAUTHORIZED')
+    })
+})
+
+describe('token expiry', () => {
+    const SEVEN_DAYS_SECONDS = 7 * 24 * 60 * 60
+
+    // Plants a token straight into the user's token list, as if issued
+    // earlier, so its expiry can be set to anything.
+    async function plantToken(userId, claims, options) {
+        const token = jwt.sign({ _id: userId, ...claims }, process.env.JSON_WEB_TOKEN_SECRET, options)
+        await User.updateOne({ _id: userId }, { $push: { tokens: { token } } })
+        return token
+    }
+
+    it('issues tokens that expire in 7 days', async () => {
+        const { token } = await createAndSignIn()
+        const { iat, exp } = jwt.decode(token)
+        expect(exp - iat).toBe(SEVEN_DAYS_SECONDS)
+    })
+
+    it('stores each token with the same expiry as the token itself', async () => {
+        const { token, user } = await createAndSignIn()
+        const persisted = await User.findById(user._id)
+        const stored = persisted.tokens.find((t) => t.token === token)
+        expect(stored.expiresAt.getTime()).toBe(jwt.decode(token).exp * 1000)
+    })
+
+    it('returns 401 UNAUTHORIZED for an expired token, even if it is still stored', async () => {
+        const { user } = await createAndSignIn()
+        const expired = await plantToken(user._id, {}, { expiresIn: -60 })
+        const res = await request(app).get('/users/me').set('Authorization', `Bearer ${expired}`)
+        expect(res.status).toBe(401)
+        expect(res.body.error.code).toBe('UNAUTHORIZED')
+    })
+
+    it('returns 401 UNAUTHORIZED for an old token with no expiry, even if it is still stored', async () => {
+        const { user } = await createAndSignIn()
+        const legacy = await plantToken(user._id, {})
+        const res = await request(app).get('/users/me').set('Authorization', `Bearer ${legacy}`)
         expect(res.status).toBe(401)
         expect(res.body.error.code).toBe('UNAUTHORIZED')
     })
