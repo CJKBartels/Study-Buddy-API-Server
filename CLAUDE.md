@@ -61,6 +61,12 @@ compound unique index. Write rows under a unique index through **one atomic code
 path** (for example `AssignmentUserState.findOrCreate`, an upsert), never
 `findOne` followed by `create`.
 
+**Session participant status is a state machine.** `SessionParticipant` has an
+`ALLOWED_MOVES` table and `participant.canMoveTo(status)`. Routes check it before
+changing `status`, never set it directly. The table says *which* changes exist.
+Routes add rules about *who* may make them (only the host re-invites a removed
+user; RSVP and join can't promote a waitlisted user).
+
 **Auth tokens are stateful.** `user.generateAuthToken()` pushes each JWT onto
 `user.tokens`. `auth` requires the token to still be in that array, so sign-out
 works by removing it.
@@ -72,12 +78,11 @@ and default message come from `src/assets/errorCodes.js`. Add new codes there.
 `{ error: { code, message, details? } }`, including Mongoose
 validation/cast/duplicate-key errors and JWT errors. Express 5 forwards rejected
 async handlers automatically, so routes just `throw` without try/catch.
-- Migrated: `user`, `course`, `assignments` routers; `auth`, `courseAccess`,
-  `assignmentAccess` middleware.
+- Migrated: `user`, `course`, `assignments`, `session` routers; `auth`,
+  `courseAccess`, `assignmentAccess`, `sessionAccess` middleware.
 - **Not yet migrated** (still `res.status(...).send(...)` with mixed shapes):
-  `session` and `availability` routers, `sessionAccess` middleware. When you
-  touch them, convert to `AppError`. `src/assets/error.js`
-  (`sendValidationError`) is the legacy helper.
+  the `availability` router. When you touch it, convert to `AppError`.
+  `src/assets/error.js` (`sendValidationError`) is the legacy helper.
 
 **Global Mongoose schema settings.** `db/mongoose.js` makes every String field
 trimmed and rejects empty strings. `tests/setup.js` repeats these settings
