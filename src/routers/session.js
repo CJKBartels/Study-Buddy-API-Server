@@ -12,13 +12,23 @@ const router = new Router()
 
 //Create Session
 router.post('/courses/:courseId/sessions', auth, isCourse, isCourseMember, async (req, res) => {
-    const { body: data, course, user } = req
+    const { body, course, user } = req
 
-    data.course = course._id
-    data.host = user._id
-    data.timezone = user.timezone
+    // course, host, timezone, and status are set by the server, never the client
+    const creatable = ['title', 'goal', 'description', 'startsAt', 'endsAt', 'location', 'locationType', 'capacity', 'joinPolicy']
+    const rejected = Object.keys(body).filter((field) => !creatable.includes(field))
 
-    const session = new Session(data)
+    if (rejected.length > 0) {
+        const details = Object.fromEntries(rejected.map((field) => [field, 'Field cannot be set']))
+        throw new AppError('VALIDATION_ERROR', { details })
+    }
+
+    const session = new Session({
+        ...body,
+        course: course._id,
+        host: user._id,
+        timezone: user.timezone
+    })
     await session.save()
 
     await SessionParticipant.create({

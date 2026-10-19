@@ -137,6 +137,17 @@ describe('POST /courses/:courseId/sessions', () => {
         expect(res.body.error.code).toBe('VALIDATION_ERROR')
         expect(res.body.error.details.title).toBeDefined()
     })
+
+    it('returns 400 VALIDATION_ERROR for fields a client may not set, and creates nothing', async () => {
+        const { member, course } = await sessionWithMember()
+        const res = await createSession(member.token, course._id, { status: 'cancelled', host: NON_EXISTENT_ID })
+        expect(res.status).toBe(400)
+        expect(res.body.error.code).toBe('VALIDATION_ERROR')
+        expect(Object.keys(res.body.error.details).sort()).toEqual(['host', 'status'])
+
+        const list = await call('get', member.token, `/courses/${course._id}/sessions?status=cancelled`)
+        expect(list.body).toHaveLength(0)
+    })
 })
 
 describe('GET /courses/:courseId/sessions', () => {
