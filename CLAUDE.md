@@ -91,8 +91,9 @@ because tests never import `db/mongoose.js`. **Change both together.**
 
 **Swagger.** The spec is built from `@openapi` JSDoc blocks in
 `src/routers/**/*.js`. Shared schemas live in `swagger.js` under
-`components.schemas`. It is served at `/api-docs`. `user`, `course`, and
-`assignments` are documented. `session` and `availability` are not yet.
+`components.schemas`. It is served at `/api-docs`. Every route is documented,
+and `tests/openapi.test.js` fails if a route has no doc block or a new error
+code isn't listed in the shared error responses.
 
 ## Testing
 

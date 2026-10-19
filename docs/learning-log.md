@@ -3,6 +3,14 @@
 Design decisions and lessons from working in this codebase.
 Newest entries at the top.
 
+## 2026-10-19 — OpenAPI docs: shared error responses and a coverage test
+
+- **Task:** document the session and availability routes (#5), then backfill error responses for the older routers.
+- **Decision:** one `Error` schema plus reusable `BadRequest`/`Unauthorized`/`Forbidden`/`NotFound`/`Conflict` responses that list the codes for each status; routes reference the statuses they can return. A test compares registered routes with documented ones and `errorCodes.js` with the response descriptions.
+- **Alternatives considered:** success responses only (matches the old routes, but the error envelope stays undocumented); every code written out per route (most precise, most writing, and stale on every new `throw`).
+- **Lesson:** docs that nothing checks drift. Comparing the real routes with the spec found 25 undocumented routes, 5 blocks for routes that don't exist (wrong method, wrong path, Express `:param` syntax), and 4 wrong success codes. swagger-jsdoc also drops a block with a YAML mistake (an unquoted colon) with only a console warning. Turning the comparison into a test makes drift fail CI.
+- **Revisit:** the test reads Express internals (`router.stack`), so an Express upgrade could break it. Specific codes per route are only text in shared descriptions. Four routers are `express()` apps created with `new Router()` from the default import; harmless, but `express.Router()` is what they mean.
+
 ## 2026-10-19 — Availability: validate a draft, then upsert
 
 - **Task:** move the availability router to `AppError` (#4). A probe showed `PUT /availability/me` saved anything (day 9, blocks ending before they start, `Mars/Olympus`).
