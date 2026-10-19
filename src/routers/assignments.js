@@ -31,14 +31,20 @@ const router = new Router()
  *           schema:
  *             $ref: '#/components/schemas/AssignmentCreateRequest'
  *     responses:
- *       201:
- *         description: Assignment Object
+ *       200:
+ *         description: The created assignment
  *         content:
  *          application/json:
  *              schema:
  *                  $ref: '#/components/schemas/Assignment'
  *       400:
- *         description: Validation Errors
+ *         $ref: '#/components/responses/BadRequest'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       403:
+ *         $ref: '#/components/responses/Forbidden'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
 */
 router.post('/courses/:courseId/assignments',
     auth, isCourse, isCourseMember,
@@ -96,6 +102,14 @@ router.post('/courses/:courseId/assignments',
  *                  type: array
  *                  items:
  *                      $ref: '#/components/schemas/Assignment'
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       403:
+ *         $ref: '#/components/responses/Forbidden'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
 */
 router.get('/courses/:courseId/assignments',
     auth, isCourse, isCourseMember,
@@ -151,6 +165,14 @@ router.get('/courses/:courseId/assignments',
  *          application/json:
  *              schema:
  *                  $ref: '#/components/schemas/Assignment'
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       403:
+ *         $ref: '#/components/responses/Forbidden'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
 */
 router.get('/courses/:courseId/assignments/:assignmentId',
     auth, isCourse, isCourseMember, isAssignment,
@@ -199,7 +221,13 @@ router.get('/courses/:courseId/assignments/:assignmentId',
  *              schema:
  *                  $ref: '#/components/schemas/Assignment'
  *       400:
- *         description: Validation Errors
+ *         $ref: '#/components/responses/BadRequest'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       403:
+ *         $ref: '#/components/responses/Forbidden'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
 */
 router.patch('/courses/:courseId/assignments/:assignmentId',
     auth, isCourse, isCourseMember, isAssignment,
@@ -263,6 +291,14 @@ router.patch('/courses/:courseId/assignments/:assignmentId',
  *          application/json:
  *              schema:
  *                  $ref: '#/components/schemas/Assignment'
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       403:
+ *         $ref: '#/components/responses/Forbidden'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
 */
 router.post('/courses/:courseId/assignments/:assignmentId/stamp',
     auth, isCourse, isCourseModerator, isAssignment,
@@ -298,6 +334,16 @@ router.post('/courses/:courseId/assignments/:assignmentId/stamp',
 *     responses:
 *       200:
 *         description: Assignment Archived Successfully
+*       400:
+*         $ref: '#/components/responses/BadRequest'
+*       401:
+*         $ref: '#/components/responses/Unauthorized'
+*       403:
+*         $ref: '#/components/responses/Forbidden'
+*       404:
+*         $ref: '#/components/responses/NotFound'
+*       409:
+*         $ref: '#/components/responses/Conflict'
 */
 router.delete('/courses/:courseId/assignments/:assignmentId',
     auth, isCourse, isCourseMember, isAssignment,
@@ -364,6 +410,14 @@ router.delete('/courses/:courseId/assignments/:assignmentId',
  *                              $ref: '#/components/schemas/Assignment'
  *                          userState:
  *                              $ref: '#/components/schemas/AssignmentUserState'
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       403:
+ *         $ref: '#/components/responses/Forbidden'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
 */
 router.get('/courses/:courseId/my/assignments',
     auth, isCourse, isCourseMember,
@@ -478,6 +532,14 @@ router.get('/courses/:courseId/my/assignments',
  *                  type: array
  *                  items:
  *                     $ref: '#/components/schemas/AssignmentUserState'
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       403:
+ *         $ref: '#/components/responses/Forbidden'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
 */
 router.patch('/courses/:courseId/assignments/:assignmentId/my-state',
     auth, isCourse, isCourseMember, isAssignment,
@@ -538,6 +600,8 @@ router.patch('/courses/:courseId/assignments/:assignmentId/my-state',
  *                  type: array
  *                  items:
  *                     $ref: '#/components/schemas/AssignmentUserState'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
 */
 router.get('/assignments', auth, async (req, res) => {
     const { user, query } = req

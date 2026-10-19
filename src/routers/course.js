@@ -34,6 +34,10 @@ const router = new Router()
  *          application/json:
  *              schema:
  *                  $ref: '#/components/schemas/Course'        
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
 */
 router.post('/courses', auth, async (req, res) => {
     let { user, body: data } = req
@@ -100,7 +104,8 @@ function generateJoinCode(length = CODE_LENGTH) {
  *      - in: path
  *        required: true
  *        name: courseId
- *        type: string
+ *        schema:
+ *          type: string
  *        description: Id of course in question
  *     responses:
  *       200:
@@ -109,6 +114,12 @@ function generateJoinCode(length = CODE_LENGTH) {
  *          application/json:
  *              schema:
  *                  $ref: '#/components/schemas/Course'        
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
 */
 router.get('/courses/:courseId', auth, isCourse, async (req, res) => {
     const { course } = req
@@ -118,7 +129,36 @@ router.get('/courses/:courseId', auth, isCourse, async (req, res) => {
     res.status(200).send(data)
 })
 
-//Get Join Code (admin only)
+/**
+ * Get Join Code
+ *
+ * @openapi
+ * /courses/{courseId}/joinCode:
+ *   get:
+ *     summary: Get the course join code (admin only)
+ *     tags: [Course]
+ *     parameters:
+ *       - $ref: '#/components/parameters/CourseId'
+ *     responses:
+ *       200:
+ *         description: The current join code
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 joinCode:
+ *                   type: string
+ *                   example: K7Q2M9XA
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       403:
+ *         $ref: '#/components/responses/Forbidden'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ */
 router.get('/courses/:courseId/joinCode', auth, isCourse, isCourseAdmin, async (req, res) => {
     res.status(200).send({ joinCode: req.course.joinCode })
 })
@@ -141,6 +181,8 @@ router.get('/courses/:courseId/joinCode', auth, isCourse, isCourseAdmin, async (
  *                  type: array
  *                  items:
  *                      $ref: '#/components/schemas/Course'        
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
 */
 router.get('/courses', auth, async (req, res) => {  //Add more functionality later
     const courses = await Course.find({}, { joinCode: 0 })
@@ -160,11 +202,20 @@ router.get('/courses', auth, async (req, res) => {  //Add more functionality lat
  *      - in: path
  *        required: true
  *        name: courseId
- *        type: string
+ *        schema:
+ *          type: string
  *        description: Id of course in question
  *     responses:
- *       200:
- *         description: Success
+ *       204:
+ *         description: Course and everything in it deleted (no body)
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       403:
+ *         $ref: '#/components/responses/Forbidden'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
 */
 router.delete('/courses/:courseId', auth, isCourse, isCourseAdmin, async (req, res) => {
     const courseId = req.course._id
@@ -201,7 +252,8 @@ router.delete('/courses/:courseId', auth, isCourse, isCourseAdmin, async (req, r
  *      - in: path
  *        required: true
  *        name: courseId
- *        type: string
+ *        schema:
+ *          type: string
  *        description: Id of course in question
  *     requestBody:
  *      required: true
@@ -227,6 +279,14 @@ router.delete('/courses/:courseId', auth, isCourse, isCourseAdmin, async (req, r
  *          application/json:
  *              schema:
  *                  $ref: '#/components/schemas/Course'
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       403:
+ *         $ref: '#/components/responses/Forbidden'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
 */
 router.patch('/courses/:courseId', auth, isCourse, isCourseAdmin, async (req, res) => {
     const { body: updates, course } = req
@@ -260,22 +320,32 @@ router.patch('/courses/:courseId', auth, isCourse, isCourseAdmin, async (req, re
  * 
  * @openapi
  * /courses/join/{joinCode}:
- *    patch:
+ *    post:
  *     summary: Join course with code
  *     tags: [Course]
  *     parameters:
  *      - in: path
  *        required: true
  *        name: joinCode
- *        type: string
+ *        schema:
+ *          type: string
  *        description: joinCode of Course
  *     responses:
- *       200:
- *         description: User has joined successfullyt
+ *       201:
+ *         description: Joined as a member
  *         content:
- *          application/json:
+ *          text/plain:
  *              schema:
- *                  $ref: '#/components/schemas/Course'
+ *                  type: string
+ *                  example: User has joined successfully
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       403:
+ *         $ref: '#/components/responses/Forbidden'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ *       409:
+ *         $ref: '#/components/responses/Conflict'
 */
 router.post('/courses/join/:joinCode', auth, async (req, res) => {
     const course = await Course.findOne({ joinCode: req.params.joinCode })
@@ -311,7 +381,7 @@ router.post('/courses/join/:joinCode', auth, async (req, res) => {
  * Rotate joinCode
  * 
  * @openapi
- * /courses/:courseId/joinCode:
+ * /courses/{courseId}/joinCode:
  *    patch:
  *     summary: Rotate join code
  *     tags: [Course]
@@ -319,18 +389,27 @@ router.post('/courses/join/:joinCode', auth, async (req, res) => {
  *      - in: path
  *        required: true
  *        name: courseId
- *        type: string
+ *        schema:
+ *          type: string
  *        description: id of course
  *     responses:
- *       200:
- *         description: join code rotated
+ *       201:
+ *         description: The new join code
  *         content:
- *          application/json:
+ *          text/plain:
  *              schema:
- *                  type: String
- * 
+ *                  type: string
+ *                  example: K7Q2M9XA
  *       500:
  *          description: Failed to generate unique join code
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       403:
+ *         $ref: '#/components/responses/Forbidden'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
 */
 router.patch('/courses/:courseId/joinCode', auth, isCourse, isCourseAdmin, async (req, res) => {
     const { course } = req
@@ -355,7 +434,7 @@ router.patch('/courses/:courseId/joinCode', auth, isCourse, isCourseAdmin, async
  * Get Members
  * 
  * @openapi
- * /courses/:courseId/members:
+ * /courses/{courseId}/members:
  *    get:
  *     summary: Get course members
  *     tags: [Course]
@@ -363,7 +442,8 @@ router.patch('/courses/:courseId/joinCode', auth, isCourse, isCourseAdmin, async
  *      - in: path
  *        required: true
  *        name: courseId
- *        type: string
+ *        schema:
+ *          type: string
  *        description: id of course
  *     responses:
  *       200:
@@ -389,6 +469,14 @@ router.patch('/courses/:courseId/joinCode', auth, isCourse, isCourseAdmin, async
  *                              type: string
  *                          joinedAt:
  *                              type: string
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       403:
+ *         $ref: '#/components/responses/Forbidden'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
 */
 router.get('/courses/:courseId/members', auth, isCourse, isCourseMember, async (req, res) => {
     const { course } = req
@@ -405,7 +493,7 @@ router.get('/courses/:courseId/members', auth, isCourse, isCourseMember, async (
 * Get Member
 * 
 * @openapi
-* /courses/:courseId/members/:userId:
+* /courses/{courseId}/members/{userId}:
 *    get:
 *     summary: Get member details
 *     tags: [Course]
@@ -413,12 +501,14 @@ router.get('/courses/:courseId/members', auth, isCourse, isCourseMember, async (
 *      - in: path
 *        required: true
 *        name: courseId
-*        type: string
+*        schema:
+*          type: string
 *        description: id of course
 *      - in: path
 *        required: true
 *        name: userId
-*        type: string
+*        schema:
+*          type: string
 *        description: id of member
 *     responses:
 *       200:
@@ -444,6 +534,14 @@ router.get('/courses/:courseId/members', auth, isCourse, isCourseMember, async (
 *                       type: string
 *                   updatedAt:
 *                       type: string
+*       400:
+*         $ref: '#/components/responses/BadRequest'
+*       401:
+*         $ref: '#/components/responses/Unauthorized'
+*       403:
+*         $ref: '#/components/responses/Forbidden'
+*       404:
+*         $ref: '#/components/responses/NotFound'
 */
 router.get('/courses/:courseId/members/:userId', auth, isCourse, isCourseMember, async (req, res) => {
     const { params } = req
@@ -456,7 +554,57 @@ router.get('/courses/:courseId/members/:userId', auth, isCourse, isCourseMember,
     res.status(200).send(membership)
 })
 
-//Change role/status
+/**
+ * Change Member Role or Status
+ *
+ * @openapi
+ * /courses/{courseId}/members/{userId}:
+ *   patch:
+ *     summary: Change a member's role or ban status (admin only)
+ *     tags: [Course]
+ *     parameters:
+ *       - $ref: '#/components/parameters/CourseId'
+ *       - $ref: '#/components/parameters/UserId'
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               role:
+ *                 type: string
+ *                 enum: [member, moderator, admin]
+ *               status:
+ *                 type: string
+ *                 enum: [active, banned]
+ *     responses:
+ *       200:
+ *         description: The updated membership
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 _id:
+ *                   type: string
+ *                 course:
+ *                   type: string
+ *                 user:
+ *                   type: string
+ *                 role:
+ *                   type: string
+ *                 status:
+ *                   type: string
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       403:
+ *         $ref: '#/components/responses/Forbidden'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ */
 router.patch('/courses/:courseId/members/:userId', auth, isCourse, isCourseAdmin, async (req, res) => {
     const { body: updates, course, params } = req
 
@@ -486,7 +634,32 @@ router.patch('/courses/:courseId/members/:userId', auth, isCourse, isCourseAdmin
     res.status(200).send(membership)
 })
 
-//Leave Course
+/**
+ * Leave Course
+ *
+ * @openapi
+ * /courses/{courseId}/members/me:
+ *   delete:
+ *     summary: Leave a course
+ *     tags: [Course]
+ *     parameters:
+ *       - $ref: '#/components/parameters/CourseId'
+ *     responses:
+ *       200:
+ *         description: Left the course (MongoDB delete result)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/DeleteResult'
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       403:
+ *         $ref: '#/components/responses/Forbidden'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ */
 router.delete('/courses/:courseId/members/me', auth, isCourse, isCourseMember, async (req, res) => {
     const { course, user } = req
 
@@ -494,7 +667,33 @@ router.delete('/courses/:courseId/members/me', auth, isCourse, isCourseMember, a
     res.status(200).send(result)
 })
 
-//Remove Member
+/**
+ * Remove Member
+ *
+ * @openapi
+ * /courses/{courseId}/members/{userId}:
+ *   delete:
+ *     summary: Remove a member from the course (admin only)
+ *     tags: [Course]
+ *     parameters:
+ *       - $ref: '#/components/parameters/CourseId'
+ *       - $ref: '#/components/parameters/UserId'
+ *     responses:
+ *       200:
+ *         description: Member removed (MongoDB delete result; deletedCount is 0 if they weren't a member)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/DeleteResult'
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       403:
+ *         $ref: '#/components/responses/Forbidden'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ */
 router.delete('/courses/:courseId/members/:userId', auth, isCourse, isCourseAdmin, async (req, res) => {
     const { course, params } = req
 
