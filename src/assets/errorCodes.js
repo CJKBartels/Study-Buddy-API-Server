@@ -32,6 +32,7 @@ export const ERROR_CODES = Object.freeze({
     INVALID_STATUS_CHANGE: { status: 409, message: 'Participant status cannot change this way' },
     PARTICIPANT_NOT_FOUND: { status: 404, message: 'User is not part of session' },
     INVITEE_NOT_IN_COURSE: { status: 400, message: 'Invitee is not an active member of course' },
+    AVAILABILITY_NOT_FOUND: { status: 404, message: 'User has not set availability yet' },
     MESSAGE_NOT_FOUND: { status: 404, message: 'Message does not exist' },
     CANNOT_MODIFY_MESSAGE: { status: 403, message: 'User cannot modify this message' },
 })
