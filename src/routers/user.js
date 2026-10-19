@@ -35,9 +35,9 @@ const router = new Router()
  *                          type: string
  *                          
  *       409:
- *         description: Duplicate Account
+ *         $ref: '#/components/responses/Conflict'
  *       400:
- *         description: Validation Errors
+ *         $ref: '#/components/responses/BadRequest'
 */
 router.post('/users', async (req, res) => {
     const { body: data } = req
@@ -70,6 +70,8 @@ router.post('/users', async (req, res) => {
  *          application/json:
  *              schema:
  *                  $ref: '#/components/schemas/UserPrivate'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
  *                  
 */
 router.get('/users/me', auth, async (req, res) => {
@@ -101,6 +103,8 @@ router.get('/users/me', auth, async (req, res) => {
  *                  type: array
  *                  items:
  *                      $ref: '#/components/schemas/UserPublic'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
  *                  
 */
 router.get('/users', auth, async (req, res) => {
@@ -123,7 +127,7 @@ router.get('/users', auth, async (req, res) => {
  * Get User by Id
  * 
  * @openapi
- * /users/{userId}:
+ * /user/{userId}:
  *   get:
  *     summary: Get 'User By Id'
  *     tags: [User]
@@ -141,6 +145,12 @@ router.get('/users', auth, async (req, res) => {
  *          application/json:
  *              schema:
  *                  $ref: '#/components/schemas/UserPublic'
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
  *                  
 */
 router.get('/user/:userId', auth, async (req, res) => {
@@ -196,7 +206,7 @@ router.get('/user/:userId', auth, async (req, res) => {
  *                      token:
  *                          type: string
  *       400:
- *          description: Bad Request
+ *          $ref: '#/components/responses/BadRequest'
  */
 router.post('/user/sign-in', async (req, res) => {
     try {
@@ -223,6 +233,8 @@ router.post('/user/sign-in', async (req, res) => {
  *     responses:
  *       200:
  *         description: Signed Out Successfully
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
 */
 router.post('/user/sign-out', auth, async (req, res) => {
     req.user.tokens = req.user.tokens.filter((token) => {
@@ -268,7 +280,11 @@ router.post('/user/sign-out', auth, async (req, res) => {
  *              schema:
  *                  $ref: '#/components/schemas/UserPrivate'
  *       400:
- *          description: Bad Request
+ *          $ref: '#/components/responses/BadRequest'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       409:
+ *         $ref: '#/components/responses/Conflict'
  */
 router.patch('/users/me', auth, async (req, res) => {
     const mods = req.body
@@ -306,6 +322,8 @@ router.patch('/users/me', auth, async (req, res) => {
  *     responses:
  *       200:
  *         description: Account Deleted
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
  */
 router.delete('/users/me', auth, async (req, res) => {
     await req.user.deleteOne()
