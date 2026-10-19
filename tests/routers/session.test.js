@@ -392,3 +392,128 @@ describe('DELETE /courses/:courseId/sessions/:sessionId/participants/:userId', (
         expect(res.body.error.code).toBe('NOT_SESSION_HOST')
     })
 })
+
+async function sendMessage(token, base, message) {
+    return call('post', token, `${base}/messages`).send({ message })
+}
+
+// Fixture: the member has joined the session, so both users can chat.
+async function chattingPair() {
+    const fixture = await sessionWithMember()
+    await call('post', fixture.member.token, `${fixture.base}/join`)
+    return fixture
+}
+
+describe('POST /courses/:courseId/sessions/:sessionId/messages', () => {
+    it('returns 201 with the message for a participant', async () => {
+        const { member, base } = await chattingPair()
+        const res = await sendMessage(member.token, base, 'hello')
+        expect(res.status).toBe(201)
+        expect(res.body.body).toBe('hello')
+        expect(res.body.sender).toBe(member.user._id)
+    })
+
+    it('returns 400 VALIDATION_ERROR for an empty message', async () => {
+        const { member, base } = await chattingPair()
+        const res = await call('post', member.token, `${base}/messages`).send({})
+        expect(res.status).toBe(400)
+        expect(res.body.error.code).toBe('VALIDATION_ERROR')
+    })
+
+    it('returns 403 NOT_SESSION_PARTICIPANT for a non-participant', async () => {
+        const { member, base } = await sessionWithMember()
+        const res = await sendMessage(member.token, base, 'hello')
+        expect(res.status).toBe(403)
+        expect(res.body.error.code).toBe('NOT_SESSION_PARTICIPANT')
+    })
+})
+
+describe('GET /courses/:courseId/sessions/:sessionId/messages', () => {
+    async function threeMessages() {
+        const fixture = await chattingPair()
+        for (const text of ['one', 'two', 'three']) {
+            await sendMessage(fixture.member.token, fixture.base, text)
+        }
+        return fixture
+    }
+
+    it('returns the messages of the session', async () => {
+        const { host, base } = await threeMessages()
+        const res = await call('get', host.token, `${base}/messages`)
+        expect(res.status).toBe(200)
+        expect(res.body.map((m) => m.body)).toEqual(['one', 'two', 'three'])
+    })
+
+    it('pages with limit and offset', async () => {
+        const { host, base } = await threeMessages()
+        const res = await call('get', host.token, `${base}/messages?limit=1&offset=1`)
+        expect(res.body.map((m) => m.body)).toEqual(['two'])
+    })
+
+    it('leaves out deleted messages', async () => {
+        const { member, base } = await chattingPair()
+        const sent = await sendMessage(member.token, base, 'oops')
+        await call('delete', member.token, `${base}/messages/${sent.body._id}`)
+        const res = await call('get', member.token, `${base}/messages`)
+        expect(res.body).toHaveLength(0)
+    })
+})
+
+describe('PATCH /courses/:courseId/sessions/:sessionId/messages/:messageId', () => {
+    it('returns 200 and marks the message edited for its sender', async () => {
+        const { member, base } = await chattingPair()
+        const sent = await sendMessage(member.token, base, 'helo')
+        const res = await call('patch', member.token, `${base}/messages/${sent.body._id}`).send({ message: 'hello' })
+        expect(res.status).toBe(200)
+        expect(res.body.body).toBe('hello')
+        expect(res.body.edited).toBe(true)
+    })
+
+    it('returns 403 CANNOT_MODIFY_MESSAGE when editing someone else\'s message', async () => {
+        const { host, member, base } = await chattingPair()
+        const sent = await sendMessage(member.token, base, 'mine')
+        const res = await call('patch', host.token, `${base}/messages/${sent.body._id}`).send({ message: 'yours now' })
+        expect(res.status).toBe(403)
+        expect(res.body.error.code).toBe('CANNOT_MODIFY_MESSAGE')
+    })
+
+    it('returns 404 MESSAGE_NOT_FOUND for an unknown message', async () => {
+        const { member, base } = await chattingPair()
+        const res = await call('patch', member.token, `${base}/messages/${NON_EXISTENT_ID}`).send({ message: 'x' })
+        expect(res.status).toBe(404)
+        expect(res.body.error.code).toBe('MESSAGE_NOT_FOUND')
+    })
+})
+
+describe('DELETE /courses/:courseId/sessions/:sessionId/messages/:messageId', () => {
+    it('lets the sender delete their message', async () => {
+        const { member, base } = await chattingPair()
+        const sent = await sendMessage(member.token, base, 'bye')
+        const res = await call('delete', member.token, `${base}/messages/${sent.body._id}`)
+        expect(res.status).toBe(200)
+    })
+
+    it('lets the host delete anyone\'s message', async () => {
+        const { host, member, base } = await chattingPair()
+        const sent = await sendMessage(member.token, base, 'spam')
+        const res = await call('delete', host.token, `${base}/messages/${sent.body._id}`)
+        expect(res.status).toBe(200)
+    })
+
+    it('returns 403 CANNOT_MODIFY_MESSAGE for a participant who is neither sender nor host', async () => {
+        const { host, member, base } = await chattingPair()
+        const sent = await sendMessage(host.token, base, 'host says')
+        const res = await call('delete', member.token, `${base}/messages/${sent.body._id}`)
+        expect(res.status).toBe(403)
+        expect(res.body.error.code).toBe('CANNOT_MODIFY_MESSAGE')
+    })
+
+    it('returns 404 MESSAGE_NOT_FOUND when deleting twice', async () => {
+        const { member, base } = await chattingPair()
+        const sent = await sendMessage(member.token, base, 'bye')
+        await call('delete', member.token, `${base}/messages/${sent.body._id}`)
+        const res = await call('delete', member.token, `${base}/messages/${sent.body._id}`)
+        expect(res.status).toBe(404)
+        expect(res.body.error.code).toBe('MESSAGE_NOT_FOUND')
+    })
+})
