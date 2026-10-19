@@ -73,6 +73,42 @@ describe('PUT /availability/me', () => {
         expect(res.body.blocks[0].day).toBe(3)
     })
 
+    it('returns 200 with the saved availability', async () => {
+        const { token, user } = await createAndSignIn()
+        const res = await putAvailability(token, baseAvailability())
+        expect(res.status).toBe(200)
+        expect(res.body.user).toBe(user._id)
+        expect(res.body.timezone).toBe('America/New_York')
+        expect(res.body.blocks).toMatchObject(baseAvailability().blocks)
+    })
+
+    it.each([
+        ['a day outside 0-6', { blocks: [{ day: 9, startMin: 540, endMin: 660 }] }, 'blocks.0.day'],
+        ['a start before midnight', { blocks: [{ day: 1, startMin: -5, endMin: 660 }] }, 'blocks.0.startMin'],
+        ['an end past midnight', { blocks: [{ day: 1, startMin: 540, endMin: 1500 }] }, 'blocks.0.endMin'],
+        ['a block that ends before it starts', { blocks: [{ day: 1, startMin: 900, endMin: 60 }] }, 'blocks.0.endMin'],
+        ['a zero-length block', { blocks: [{ day: 1, startMin: 540, endMin: 540 }] }, 'blocks.0.endMin'],
+        ['an unknown timezone', { timezone: 'Mars/Olympus' }, 'timezone'],
+        ['a missing timezone', { timezone: undefined }, 'timezone']
+    ])('returns 400 VALIDATION_ERROR for %s, and saves nothing', async (_, overrides, field) => {
+        const { token } = await createAndSignIn()
+        const res = await putAvailability(token, { ...baseAvailability(), ...overrides })
+        expect(res.status).toBe(400)
+        expect(res.body.error.code).toBe('VALIDATION_ERROR')
+        expect(res.body.error.details[field]).toBeDefined()
+
+        const saved = await getAvailability(token)
+        expect(saved.status).toBe(404)
+    })
+
+    it('keeps the previous availability when a replacement is invalid', async () => {
+        const { token } = await createAndSignIn()
+        await putAvailability(token, baseAvailability())
+        await putAvailability(token, { ...baseAvailability(), timezone: 'Mars/Olympus' })
+        const res = await getAvailability(token)
+        expect(res.body.timezone).toBe('America/New_York')
+    })
+
     it('returns 401 UNAUTHORIZED without a token', async () => {
         const res = await request(app).put('/availability/me').send(baseAvailability())
         expect(res.status).toBe(401)
