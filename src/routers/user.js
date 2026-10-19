@@ -209,15 +209,16 @@ router.get('/user/:userId', auth, async (req, res) => {
  *          $ref: '#/components/responses/BadRequest'
  */
 router.post('/user/sign-in', async (req, res) => {
-    try {
-        const user = await User.findByCredentials(req.body.email, req.body.password)
-        const token = await user.generateAuthToken()
+    const user = await User.findByCredentials(req.body.email, req.body.password)
 
-        res.status(200).send({ user, token })
-    } catch (error) {
-        // Don't disclose which of email/password was wrong.
+    // Same error for a wrong email or a wrong password, so callers can't
+    // probe which emails have accounts
+    if (!user) {
         throw new AppError('INVALID_CREDENTIALS')
     }
+
+    const token = await user.generateAuthToken()
+    res.status(200).send({ user, token })
 })
 
 
@@ -237,10 +238,9 @@ router.post('/user/sign-in', async (req, res) => {
  *         $ref: '#/components/responses/Unauthorized'
 */
 router.post('/user/sign-out', auth, async (req, res) => {
-    req.user.tokens = req.user.tokens.filter((token) => {
-        return token.token !== req.token
-    })
-    await req.user.save()
+    // $pull removes just this token without reading the list first, so
+    // simultaneous sign-outs (or a sign-in) can't overwrite each other
+    await User.updateOne({ _id: req.user._id }, { $pull: { tokens: { token: req.token } } })
 
     res.status(200).send('Signed Out Successfully')
 })

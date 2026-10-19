@@ -330,6 +330,20 @@ describe('POST /user/sign-in', () => {
         expect(typeof res.body.error.code).toBe('string')
         expect(typeof res.body.error.message).toBe('string')
     })
+
+    it('keeps every token when two devices sign in at the same moment', async () => {
+        const created = await createUser()
+        const [phone, laptop] = await Promise.all([
+            signIn(baseUser().email, baseUser().password),
+            signIn(baseUser().email, baseUser().password)
+        ])
+        expect(phone.token).not.toBe(laptop.token)
+
+        const persisted = await User.findById(created.user._id)
+        const stored = persisted.tokens.map((t) => t.token)
+        expect(stored).toContain(phone.token)
+        expect(stored).toContain(laptop.token)
+    })
 })
 
 describe('POST /user/sign-out', () => {
@@ -347,6 +361,20 @@ describe('POST /user/sign-out', () => {
         const res = await request(app).post('/user/sign-out')
         expect(res.status).toBe(401)
         expect(res.body.error.code).toBe('UNAUTHORIZED')
+    })
+
+    it('removes both tokens when two devices sign out at the same moment', async () => {
+        const created = await createUser()
+        const phone = await signIn(baseUser().email, baseUser().password)
+        const laptop = await signIn(baseUser().email, baseUser().password)
+
+        await Promise.all([phone, laptop].map(({ token }) =>
+            request(app).post('/user/sign-out').set('Authorization', `Bearer ${token}`)))
+
+        const persisted = await User.findById(created.user._id)
+        const stored = persisted.tokens.map((t) => t.token)
+        expect(stored).not.toContain(phone.token)
+        expect(stored).not.toContain(laptop.token)
     })
 })
 

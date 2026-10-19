@@ -123,12 +123,6 @@ describe('User model', () => {
             expect(decoded._id).toBe(user._id.toString())
         })
 
-        it('appends the new token to user.tokens in memory', async () => {
-            const user = await saveUser()
-            const token = await user.generateAuthToken()
-            expect(user.tokens.some(t => t.token === token)).toBe(true)
-        })
-
         it('persists the token to the database', async () => {
             const user = await saveUser()
             const token = await user.generateAuthToken()
@@ -140,7 +134,14 @@ describe('User model', () => {
             const user = await saveUser()
             await user.generateAuthToken()
             await user.generateAuthToken()
-            expect(user.tokens).toHaveLength(2)
+            const persisted = await User.findById(user._id)
+            expect(persisted.tokens).toHaveLength(2)
+        })
+
+        it('issues a different token on every call, even within the same second', async () => {
+            const user = await saveUser()
+            const [first, second] = await Promise.all([user.generateAuthToken(), user.generateAuthToken()])
+            expect(first).not.toBe(second)
         })
     })
 
@@ -152,28 +153,13 @@ describe('User model', () => {
             expect(user.email).toBe('login@example.com')
         })
 
-        it('throws when the email is not registered', async () => {
-            await expect(
-                User.findByCredentials('nobody@example.com', 'anypassword')
-            ).rejects.toThrow('Unable to sign in')
+        it('returns null when the email is not registered', async () => {
+            expect(await User.findByCredentials('nobody@example.com', 'anypassword')).toBeNull()
         })
 
-        it('throws when the password is wrong', async () => {
+        it('returns null when the password is wrong', async () => {
             await saveUser({ email: 'login@example.com', password: 'goodpass99' })
-            await expect(
-                User.findByCredentials('login@example.com', 'wrongpassword')
-            ).rejects.toThrow('Unable to sign in')
-        })
-
-        it('does not reveal whether the email exists when credentials are invalid', async () => {
-            await saveUser({ email: 'login@example.com', password: 'goodpass99' })
-            const wrongEmail = User.findByCredentials('nobody@example.com', 'goodpass99')
-            const wrongPass = User.findByCredentials('login@example.com', 'wrongpassword')
-            const [errA, errB] = await Promise.all([
-                wrongEmail.catch(e => e),
-                wrongPass.catch(e => e)
-            ])
-            expect(errA.message).toBe(errB.message)
+            expect(await User.findByCredentials('login@example.com', 'wrongpassword')).toBeNull()
         })
     })
 
