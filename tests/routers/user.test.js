@@ -158,12 +158,41 @@ describe('token expiry', () => {
     const SEVEN_DAYS_SECONDS = 7 * 24 * 60 * 60
 
     // Plants a token straight into the user's token list, as if issued
-    // earlier, so its expiry can be set to anything.
-    async function plantToken(userId, claims, options) {
+    // earlier, so its expiry can be set to anything. Without expiresIn it is
+    // an old-style token: no exp claim and no stored expiresAt.
+    async function plantToken(userId, claims, options = {}) {
         const token = jwt.sign({ _id: userId, ...claims }, process.env.JSON_WEB_TOKEN_SECRET, options)
-        await User.updateOne({ _id: userId }, { $push: { tokens: { token } } })
+        const { exp } = jwt.decode(token)
+        const entry = exp ? { token, expiresAt: new Date(exp * 1000) } : { token }
+        await User.updateOne({ _id: userId }, { $push: { tokens: entry } })
         return token
     }
+
+    async function storedTokens(userId) {
+        return (await User.findById(userId)).tokens.map((t) => t.token)
+    }
+
+    it('removes expired tokens at sign-in', async () => {
+        const { user } = await createAndSignIn()
+        const expired = await plantToken(user._id, { jti: 'old' }, { expiresIn: -60 })
+        await signIn(baseUser().email, baseUser().password)
+        expect(await storedTokens(user._id)).not.toContain(expired)
+    })
+
+    it('removes old tokens with no expiry at sign-in', async () => {
+        const { user } = await createAndSignIn()
+        const legacy = await plantToken(user._id, { jti: 'legacy' })
+        await signIn(baseUser().email, baseUser().password)
+        expect(await storedTokens(user._id)).not.toContain(legacy)
+    })
+
+    it('keeps other devices\' unexpired tokens at sign-in', async () => {
+        const { token: phone, user } = await createAndSignIn()
+        const { token: laptop } = await signIn(baseUser().email, baseUser().password)
+        const stored = await storedTokens(user._id)
+        expect(stored).toContain(phone)
+        expect(stored).toContain(laptop)
+    })
 
     it('issues tokens that expire in 7 days', async () => {
         const { token } = await createAndSignIn()
