@@ -10,7 +10,14 @@ const auth = async (req, res, next) => {
         }
         const token = header.replace('Bearer ', '')
 
+        // verify rejects expired tokens (TokenExpiredError -> 401 below)
         const decoded = jwt.verify(token, process.env.JSON_WEB_TOKEN_SECRET)
+
+        // Tokens issued before expiry existed have no exp and would be valid
+        // forever, so they're refused; those users sign in again once
+        if (!decoded.exp) {
+            throw new AppError('UNAUTHORIZED')
+        }
 
         const user = await User.findOne({ _id: decoded._id, 'tokens.token': token })
 
