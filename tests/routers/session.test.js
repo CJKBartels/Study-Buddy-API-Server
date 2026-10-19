@@ -222,3 +222,173 @@ describe('DELETE /courses/:courseId/sessions/:sessionId', () => {
         expect(res.body.error.code).toBe('NOT_SESSION_HOST')
     })
 })
+
+async function invite(token, base, userIds) {
+    return call('post', token, `${base}/invites`).send(userIds)
+}
+
+async function rsvp(token, base, decision) {
+    return call('patch', token, `${base}/participants/me/${decision}`)
+}
+
+// Puts the member through invite -> accept -> removed by the host.
+async function removedMember() {
+    const fixture = await sessionWithMember()
+    const { host, member, base } = fixture
+    await invite(host.token, base, [member.user._id])
+    await rsvp(member.token, base, 'true')
+    await call('delete', host.token, `${base}/participants/${member.user._id}`)
+    return fixture
+}
+
+describe('GET /courses/:courseId/sessions/:sessionId/participants', () => {
+    it('lists participants with their usernames', async () => {
+        const { host, base } = await sessionWithMember()
+        const res = await call('get', host.token, `${base}/participants`)
+        expect(res.status).toBe(200)
+        expect(res.body).toHaveLength(1)
+        expect(res.body[0].user.username).toBe(host.user.username)
+    })
+})
+
+describe('POST /courses/:courseId/sessions/:sessionId/join', () => {
+    it('returns 200 and adds the member as accepted', async () => {
+        const { member, base } = await sessionWithMember()
+        const res = await call('post', member.token, `${base}/join`)
+        expect(res.status).toBe(200)
+        expect(res.body.status).toBe('accepted')
+    })
+
+    it('returns 403 SESSION_NOT_OPEN for an invite-only session', async () => {
+        const { member, base } = await sessionWithMember({ joinPolicy: 'invite_only' })
+        const res = await call('post', member.token, `${base}/join`)
+        expect(res.status).toBe(403)
+        expect(res.body.error.code).toBe('SESSION_NOT_OPEN')
+    })
+
+    it('returns 409 ALREADY_PARTICIPANT when joining twice', async () => {
+        const { member, base } = await sessionWithMember()
+        await call('post', member.token, `${base}/join`)
+        const res = await call('post', member.token, `${base}/join`)
+        expect(res.status).toBe(409)
+        expect(res.body.error.code).toBe('ALREADY_PARTICIPANT')
+    })
+
+    it('accepts a pending invite', async () => {
+        const { host, member, base } = await sessionWithMember()
+        await invite(host.token, base, [member.user._id])
+        const res = await call('post', member.token, `${base}/join`)
+        expect(res.status).toBe(200)
+        expect(res.body.status).toBe('accepted')
+    })
+
+    it('returns 409 INVALID_STATUS_CHANGE for a removed user', async () => {
+        const { member, base } = await removedMember()
+        const res = await call('post', member.token, `${base}/join`)
+        expect(res.status).toBe(409)
+        expect(res.body.error.code).toBe('INVALID_STATUS_CHANGE')
+    })
+
+    it('returns 409 INVALID_STATUS_CHANGE for a user who declined', async () => {
+        const { host, member, base } = await sessionWithMember()
+        await invite(host.token, base, [member.user._id])
+        await rsvp(member.token, base, 'false')
+        const res = await call('post', member.token, `${base}/join`)
+        expect(res.status).toBe(409)
+        expect(res.body.error.code).toBe('INVALID_STATUS_CHANGE')
+    })
+})
+
+describe('PATCH /courses/:courseId/sessions/:sessionId/participants/me/:decision', () => {
+    it('accepting an invite lets the user see participants', async () => {
+        const { host, member, base } = await sessionWithMember()
+        await invite(host.token, base, [member.user._id])
+        const res = await rsvp(member.token, base, 'true')
+        expect(res.status).toBe(200)
+        const participants = await call('get', member.token, `${base}/participants`)
+        expect(participants.status).toBe(200)
+    })
+
+    it('declining an invite keeps the user out', async () => {
+        const { host, member, base } = await sessionWithMember()
+        await invite(host.token, base, [member.user._id])
+        const res = await rsvp(member.token, base, 'false')
+        expect(res.status).toBe(200)
+        const participants = await call('get', member.token, `${base}/participants`)
+        expect(participants.body.error.code).toBe('NOT_SESSION_PARTICIPANT')
+    })
+
+    it('returns 403 NOT_INVITED for a user with no invite', async () => {
+        const { member, base } = await sessionWithMember()
+        const res = await rsvp(member.token, base, 'true')
+        expect(res.status).toBe(403)
+        expect(res.body.error.code).toBe('NOT_INVITED')
+    })
+
+    it('returns 409 ALREADY_PARTICIPANT when accepting twice', async () => {
+        const { host, member, base } = await sessionWithMember()
+        await invite(host.token, base, [member.user._id])
+        await rsvp(member.token, base, 'true')
+        const res = await rsvp(member.token, base, 'true')
+        expect(res.status).toBe(409)
+        expect(res.body.error.code).toBe('ALREADY_PARTICIPANT')
+    })
+
+    it('returns 409 INVALID_STATUS_CHANGE when a removed user accepts again', async () => {
+        const { member, base } = await removedMember()
+        const res = await rsvp(member.token, base, 'true')
+        expect(res.status).toBe(409)
+        expect(res.body.error.code).toBe('INVALID_STATUS_CHANGE')
+
+        const participants = await call('get', member.token, `${base}/participants`)
+        expect(participants.body.error.code).toBe('NOT_SESSION_PARTICIPANT')
+    })
+
+    it('returns 409 INVALID_STATUS_CHANGE when a user who declined accepts later', async () => {
+        const { host, member, base } = await sessionWithMember()
+        await invite(host.token, base, [member.user._id])
+        await rsvp(member.token, base, 'false')
+        const res = await rsvp(member.token, base, 'true')
+        expect(res.status).toBe(409)
+        expect(res.body.error.code).toBe('INVALID_STATUS_CHANGE')
+    })
+})
+
+describe('DELETE /courses/:courseId/sessions/:sessionId/participants/:userId', () => {
+    it('returns 200 and marks the participant removed', async () => {
+        const { host, member, base } = await sessionWithMember()
+        await call('post', member.token, `${base}/join`)
+        const res = await call('delete', host.token, `${base}/participants/${member.user._id}`)
+        expect(res.status).toBe(200)
+        expect(res.body.status).toBe('removed')
+    })
+
+    it('returns 404 PARTICIPANT_NOT_FOUND for a user not in the session', async () => {
+        const { host, member, base } = await sessionWithMember()
+        const res = await call('delete', host.token, `${base}/participants/${member.user._id}`)
+        expect(res.status).toBe(404)
+        expect(res.body.error.code).toBe('PARTICIPANT_NOT_FOUND')
+    })
+
+    it('returns 400 BAD_REQUEST when the host removes themselves', async () => {
+        const { host, base } = await sessionWithMember()
+        const res = await call('delete', host.token, `${base}/participants/${host.user._id}`)
+        expect(res.status).toBe(400)
+        expect(res.body.error.code).toBe('BAD_REQUEST')
+    })
+
+    it('returns 409 INVALID_STATUS_CHANGE when removing someone already removed', async () => {
+        const { host, member, base } = await removedMember()
+        const res = await call('delete', host.token, `${base}/participants/${member.user._id}`)
+        expect(res.status).toBe(409)
+        expect(res.body.error.code).toBe('INVALID_STATUS_CHANGE')
+    })
+
+    it('returns 403 NOT_SESSION_HOST for a non-host', async () => {
+        const { host, member, base } = await sessionWithMember()
+        await call('post', member.token, `${base}/join`)
+        const res = await call('delete', member.token, `${base}/participants/${host.user._id}`)
+        expect(res.status).toBe(403)
+        expect(res.body.error.code).toBe('NOT_SESSION_HOST')
+    })
+})

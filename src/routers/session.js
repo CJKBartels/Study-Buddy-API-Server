@@ -10,6 +10,16 @@ import AppError from '../assets/AppError.js'
 
 const router = new Router()
 
+const statusChangeError = (participant, status) =>
+    new AppError('INVALID_STATUS_CHANGE', { message: `Cannot change status from ${participant.status} to ${status}` })
+
+// Throws unless SessionParticipant's status table allows this change
+const assertCanMove = (participant, status) => {
+    if (!participant.canMoveTo(status)) {
+        throw statusChangeError(participant, status)
+    }
+}
+
 //Create Session
 router.post('/courses/:courseId/sessions', auth, isCourse, isCourseMember, async (req, res) => {
     const { body, course, user } = req
@@ -116,24 +126,20 @@ router.delete('/courses/:courseId/sessions/:sessionId',
 router.get('/courses/:courseId/sessions/:sessionId/participants',
     auth, isCourse, isCourseMember, isSession, isSessionParticipant,
     async (req, res) => {
-        try {
-            const { session, query } = req
+        const { session, query } = req
 
-            const filter = {
-                session: session._id,
-            }
-
-            if (query?.status) {
-                filter.status = query.status
-            }
-
-            const participants = await SessionParticipant.find(filter, { status: 0, session: 0 })
-                .populate('user', 'username')
-
-            res.status(200).send(participants)
-        } catch (err) {
-            res.status(500).json(err)
+        const filter = {
+            session: session._id,
         }
+
+        if (query?.status) {
+            filter.status = query.status
+        }
+
+        const participants = await SessionParticipant.find(filter, { status: 0, session: 0 })
+            .populate('user', 'username')
+
+        res.status(200).send(participants)
     }
 )
 
@@ -179,27 +185,33 @@ router.post('/courses/:courseId/sessions/:sessionId/join',
     async (req, res) => {
         const { session, user } = req
 
-        if (session.joinPolicy != 'course_open') {
-            res.status(403).send('Not an Open Session')
-            return
+        if (session.joinPolicy !== 'course_open') {
+            throw new AppError('SESSION_NOT_OPEN')
         }
 
-        const data = {
-            session: session._id,
-            user: user._id,
-            status: 'accepted'
-        }
+        // Atomic upsert: creates the participant if absent, otherwise returns the
+        // existing doc untouched. updatedExisting tells the two cases apart.
+        // Must stay $setOnInsert, not $set: $set would write 'accepted' onto an
+        // existing doc (e.g. a removed user) before the table check below runs.
+        const result = await SessionParticipant.findOneAndUpdate(
+            { session: session._id, user: user._id },
+            { $setOnInsert: { status: 'accepted', respondedAt: new Date() } },
+            { upsert: true, new: true, includeResultMetadata: true }
+        )
+        const participant = result.value
 
-        try {
-            let document = await SessionParticipant.create(data)
-            res.status(200).send(document)
-        } catch (err) {
-            if (err.code === 11000) {
-                return res.status(409).send('User is already a participant')
+        if (result.lastErrorObject.updatedExisting) {
+            if (participant.status === 'accepted') {
+                throw new AppError('ALREADY_PARTICIPANT')
             }
+            assertCanMove(participant, 'accepted')
 
-            res.status(500).json(err)
+            participant.status = 'accepted'
+            participant.respondedAt = new Date()
+            await participant.save()
         }
+
+        res.status(200).send(participant)
     }
 )
 
@@ -209,37 +221,31 @@ router.patch('/courses/:courseId/sessions/:sessionId/participants/me/:decision',
     async (req, res) => {
         const { user, session, params } = req
 
-        const participantDoc = await SessionParticipant.findOne({ session: session._id, user: user._id })
+        const participant = await SessionParticipant.findOne({ session: session._id, user: user._id })
 
-        if (!participantDoc) {
-            res.status(403).send('User was not invited to session')
-            return
+        if (!participant) {
+            throw new AppError('NOT_INVITED')
         }
 
-        if (params.decision == 'true') {
+        const status = params.decision === 'true' ? 'accepted' : 'declined'
 
-            if (participantDoc.status == 'accepted') {
-                res.status(409).send('User is alreadly a participant')
-                return
-            }
-
-            if (participantDoc.status == 'waitlisted') {
-                res.status(400).send('Session is currently at capacity')
-                return
-            }
-
-            participantDoc.status = 'accepted'
-        } else {
-            participantDoc.status = 'declined'
+        if (status === 'accepted' && participant.status === 'accepted') {
+            throw new AppError('ALREADY_PARTICIPANT')
         }
 
-        try {
-            await participantDoc.save()
-            res.status(200).send('User has joined the session')
-        } catch (error) {
-            res.status(500).json(error)
+        // RSVP only answers an invite. The table allows waitlisted -> accepted,
+        // but only so the server can promote someone when a spot opens. Without
+        // this check, a waitlisted user could RSVP "true" and skip the line.
+        if (participant.status !== 'invited') {
+            throw statusChangeError(participant, status)
         }
+        assertCanMove(participant, status)
 
+        participant.status = status
+        participant.respondedAt = new Date()
+        await participant.save()
+
+        res.status(200).send('User has joined the session')
     }
 )
 
@@ -248,14 +254,22 @@ router.delete('/courses/:courseId/sessions/:sessionId/participants/:userId',
     auth, isCourse, isCourseMember, isSession, isSessionHost,
     async (req, res) => {
         const { session, params } = req
-        try {
-            const participant = await SessionParticipant.updateOne({ session: session._id, user: params.userId }, { status: 'removed' })
 
-            res.send(participant)
-        } catch (error) {
-            res.json(error)
+        if (session.host.equals(params.userId)) {
+            throw new AppError('BAD_REQUEST', { message: 'Host cannot remove themselves' })
         }
 
+        const participant = await SessionParticipant.findOne({ session: session._id, user: params.userId })
+
+        if (!participant) {
+            throw new AppError('PARTICIPANT_NOT_FOUND')
+        }
+        assertCanMove(participant, 'removed')
+
+        participant.status = 'removed'
+        await participant.save()
+
+        res.status(200).send(participant)
     }
 )
 
