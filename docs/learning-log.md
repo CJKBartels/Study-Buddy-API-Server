@@ -3,6 +3,14 @@
 Design decisions and lessons from working in this codebase.
 Newest entries at the top.
 
+## 2026-10-19 — Token expiry, pruning, and atomic token writes
+
+- **Task:** make auth tokens expire and stop `user.tokens` growing forever (#13).
+- **Decision:** 7-day tokens and re-login, no refresh tokens. Each stored token keeps an `expiresAt` copied from its `exp`, and sign-in `$pull`s expired and pre-expiry tokens before `$push`ing the new one. `auth` refuses tokens with no `exp`.
+- **Alternatives considered:** short access tokens plus stored refresh tokens (no DB lookup per request and a 15-minute leak window, but a new endpoint, frontend refresh logic, and sign-out stops being instant). Rejected because the stored token list already gives instant revocation, which is the main thing refresh tokens add. For pruning, decoding every stored JWT instead of storing `expiresAt` (slower, and code where a query would do).
+- **Lesson:** a read-modify-write on a shared list (`concat` + `save()`) loses updates under concurrency. Here Mongoose's version check turned the conflict into a `VersionError`, and a catch-all in the sign-in route reported it as "invalid email or password" to a user with the right password. Use `$push`/`$pull` for list changes, and catch only the errors you mean to translate. Also: two JWTs with the same payload in the same second are identical strings; `jwtid` makes them unique.
+- **Revisit:** the simultaneous sign-out test passes on the old code too, so it guards but doesn't prove that race. Existing users are signed out once when this deploys.
+
 ## 2026-10-19 — OpenAPI docs: shared error responses and a coverage test
 
 - **Task:** document the session and availability routes (#5), then backfill error responses for the older routers.
