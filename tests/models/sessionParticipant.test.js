@@ -11,6 +11,7 @@ const participant = (status) => new SessionParticipant({
 describe('SessionParticipant.canMoveTo', () => {
     it.each([
         ['invited', 'accepted'],
+        ['invited', 'waitlisted'],
         ['invited', 'declined'],
         ['invited', 'removed'],
         ['accepted', 'left'],

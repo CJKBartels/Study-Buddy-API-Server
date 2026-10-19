@@ -395,6 +395,63 @@ describe('DELETE /courses/:courseId/sessions/:sessionId/participants/:userId', (
     })
 })
 
+describe('session capacity', () => {
+    // capacity 2 = the host plus one more. Returns a third course member who
+    // has not joined yet, for when the session is already full.
+    async function fullSession(sessionOverrides = {}) {
+        const fixture = await sessionWithMember({ capacity: 2, ...sessionOverrides })
+        const latecomer = await createAndSignIn()
+        await joinCourse(latecomer.token, fixture.course.joinCode)
+        return { ...fixture, latecomer }
+    }
+
+    it('accepts joins while there is room', async () => {
+        const { member, base } = await fullSession()
+        const res = await call('post', member.token, `${base}/join`)
+        expect(res.body.status).toBe('accepted')
+    })
+
+    it('waitlists a join once the session is full', async () => {
+        const { member, latecomer, base } = await fullSession()
+        await call('post', member.token, `${base}/join`)
+        const res = await call('post', latecomer.token, `${base}/join`)
+        expect(res.status).toBe(200)
+        expect(res.body.status).toBe('waitlisted')
+
+        const participants = await call('get', latecomer.token, `${base}/participants`)
+        expect(participants.body.error.code).toBe('NOT_SESSION_PARTICIPANT')
+    })
+
+    it('waitlists an accepted invite once the session is full', async () => {
+        const { host, member, latecomer, base } = await fullSession()
+        await invite(host.token, base, latecomer.user._id)
+        await call('post', member.token, `${base}/join`)
+        await rsvp(latecomer.token, base, 'true')
+
+        const waitlisted = await call('get', host.token, `${base}/participants?status=waitlisted`)
+        expect(waitlisted.body).toHaveLength(1)
+        expect(waitlisted.body[0].user._id).toBe(latecomer.user._id)
+    })
+
+    it('returns 409 ALREADY_PARTICIPANT when a waitlisted user joins again', async () => {
+        const { member, latecomer, base } = await fullSession()
+        await call('post', member.token, `${base}/join`)
+        await call('post', latecomer.token, `${base}/join`)
+        const res = await call('post', latecomer.token, `${base}/join`)
+        expect(res.status).toBe(409)
+        expect(res.body.error.code).toBe('ALREADY_PARTICIPANT')
+    })
+
+    it('returns 409 INVALID_STATUS_CHANGE when a waitlisted user RSVPs to skip the line', async () => {
+        const { member, latecomer, base } = await fullSession()
+        await call('post', member.token, `${base}/join`)
+        await call('post', latecomer.token, `${base}/join`)
+        const res = await rsvp(latecomer.token, base, 'true')
+        expect(res.status).toBe(409)
+        expect(res.body.error.code).toBe('INVALID_STATUS_CHANGE')
+    })
+})
+
 describe('POST /courses/:courseId/sessions/:sessionId/invites', () => {
     it('returns 201 with an invited participant', async () => {
         const { host, member, base } = await sessionWithMember()
