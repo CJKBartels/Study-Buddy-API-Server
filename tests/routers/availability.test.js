@@ -101,6 +101,23 @@ describe('PUT /availability/me', () => {
         expect(saved.status).toBe(404)
     })
 
+    it('stores overlapping and touching blocks merged and sorted', async () => {
+        const { token } = await createAndSignIn()
+        const res = await putAvailability(token, {
+            timezone: 'America/New_York',
+            blocks: [
+                { day: 2, startMin: 600, endMin: 660 },
+                { day: 1, startMin: 600, endMin: 720 },
+                { day: 1, startMin: 540, endMin: 600 }
+            ]
+        })
+        expect(res.body.blocks).toMatchObject([
+            { day: 1, startMin: 540, endMin: 720 },
+            { day: 2, startMin: 600, endMin: 660 }
+        ])
+        expect(res.body.blocks).toHaveLength(2)
+    })
+
     it('keeps the previous availability when a replacement is invalid', async () => {
         const { token } = await createAndSignIn()
         await putAvailability(token, baseAvailability())

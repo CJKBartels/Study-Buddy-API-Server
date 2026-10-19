@@ -53,6 +53,26 @@ const availabilitySchema = new Schema({
 
 }, { timestamps: true })
 
+// Collapse overlapping or touching blocks on the same day into one, sorted by
+// day then start time, so each stretch of free time is stored exactly one way
+// (Mon 9-10 + Mon 10-11 is stored as Mon 9-11). Plain data in, plain data out.
+export function mergeBlocks(blocks) {
+    const sorted = blocks
+        .map(({ day, startMin, endMin }) => ({ day, startMin, endMin }))
+        .sort((a, b) => a.day - b.day || a.startMin - b.startMin)
+
+    return sorted.reduce((merged, block) => {
+        const last = merged.at(-1)
+
+        if (last && last.day === block.day && block.startMin <= last.endMin) {
+            const extended = { ...last, endMin: Math.max(last.endMin, block.endMin) }
+            return [...merged.slice(0, -1), extended]
+        }
+
+        return [...merged, block]
+    }, [])
+}
+
 const Availability = model('Availability', availabilitySchema)
 
 export default Availability
