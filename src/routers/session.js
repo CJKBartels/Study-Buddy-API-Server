@@ -4,6 +4,7 @@ import Session from '../models/session.js'
 import { isCourse, isCourseMember } from '../middleware/courseAccess.js'
 import { isSession, isSessionHost, isSessionParticipant } from '../middleware/sessionAccess.js'
 import SessionParticipant from '../models/sessionParticipant.js'
+import CourseMembership from '../models/courseMembership.js'
 import { isValidObjectId } from 'mongoose'
 import SessionMessage from '../models/sessionMessage.js'
 import AppError from '../assets/AppError.js'
@@ -149,11 +150,17 @@ router.get('/courses/:courseId/sessions/:sessionId/participants',
 router.post('/courses/:courseId/sessions/:sessionId/invites',
     auth, isCourse, isCourseMember, isSession, isSessionParticipant,
     async (req, res) => {
-        const { session, body, user } = req
+        const { session, course, body, user } = req
         const { userId } = body ?? {}
 
         if (!isValidObjectId(userId)) {
             throw new AppError('BAD_REQUEST', { message: 'Invalid user id' })
+        }
+
+        const membership = await CourseMembership.findOne({ course: course._id, user: userId })
+
+        if (membership?.status !== 'active') {
+            throw new AppError('INVITEE_NOT_IN_COURSE')
         }
 
         // Same atomic upsert as join: create the invite if absent, otherwise

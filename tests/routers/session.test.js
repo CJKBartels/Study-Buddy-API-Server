@@ -411,6 +411,25 @@ describe('POST /courses/:courseId/sessions/:sessionId/invites', () => {
         expect(res.body.error.code).toBe('BAD_REQUEST')
     })
 
+    it('returns 400 INVITEE_NOT_IN_COURSE for a user outside the course, and invites nobody', async () => {
+        const { host, base } = await sessionWithMember()
+        const outsider = await createAndSignIn()
+        const res = await invite(host.token, base, outsider.user._id)
+        expect(res.status).toBe(400)
+        expect(res.body.error.code).toBe('INVITEE_NOT_IN_COURSE')
+
+        const participants = await call('get', host.token, `${base}/participants?status=invited`)
+        expect(participants.body).toHaveLength(0)
+    })
+
+    it('returns 400 INVITEE_NOT_IN_COURSE for a user banned from the course', async () => {
+        const { host, member, course, base } = await sessionWithMember()
+        await call('patch', host.token, `/courses/${course._id}/members/${member.user._id}`).send({ status: 'banned' })
+        const res = await invite(host.token, base, member.user._id)
+        expect(res.status).toBe(400)
+        expect(res.body.error.code).toBe('INVITEE_NOT_IN_COURSE')
+    })
+
     it('returns 409 ALREADY_PARTICIPANT when inviting twice', async () => {
         const { host, member, base } = await sessionWithMember()
         await invite(host.token, base, member.user._id)
