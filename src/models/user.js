@@ -76,6 +76,13 @@ userSchema.methods.generateAuthToken = async function () {
     })
     const expiresAt = new Date(jwt.decode(token).exp * 1000)
 
+    // Drop this user's dead tokens: expired ones, and old ones issued before
+    // tokens expired (no expiresAt). MongoDB can't $pull and $push the same
+    // list in one update, so this is its own atomic step.
+    await User.updateOne({ _id: this._id }, {
+        $pull: { tokens: { $or: [{ expiresAt: { $lte: new Date() } }, { expiresAt: { $exists: false } }] } }
+    })
+
     // $push adds the token without reading the list first. concat + save()
     // replaced the whole list, so simultaneous sign-ins overwrote each other.
     // The in-memory doc is left alone on purpose: changing it would make a
