@@ -324,9 +324,9 @@ router.get('/courses/:courseId/sessions/:sessionId/messages',
 router.patch('/courses/:courseId/sessions/:sessionId/messages/:messageId',
     auth, isCourse, isCourseMember, isSession, isSessionParticipant,
     async (req, res) => {
-        const { user, params, body } = req
+        const { user, params, body, session } = req
 
-        const message = await SessionMessage.findOne({ _id: params.messageId })
+        const message = await SessionMessage.findOne({ _id: params.messageId, session: session._id })
 
         if (!message || message.deletedAt) {
             throw new AppError('MESSAGE_NOT_FOUND')
@@ -350,7 +350,7 @@ router.delete('/courses/:courseId/sessions/:sessionId/messages/:messageId',
     async (req, res) => {
         const { user, params, session } = req
 
-        const message = await SessionMessage.findOne({ _id: params.messageId })
+        const message = await SessionMessage.findOne({ _id: params.messageId, session: session._id })
 
         if (!message) {
             throw new AppError('MESSAGE_NOT_FOUND')
