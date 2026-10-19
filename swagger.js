@@ -296,6 +296,14 @@ const options = {
                 }
             },
 
+            // Reusable path parameters, so routes don't repeat them
+            parameters: {
+                CourseId: { in: 'path', name: 'courseId', required: true, schema: { type: 'string' }, description: 'Id of course' },
+                SessionId: { in: 'path', name: 'sessionId', required: true, schema: { type: 'string' }, description: 'Id of session' },
+                UserId: { in: 'path', name: 'userId', required: true, schema: { type: 'string' }, description: 'Id of user' },
+                MessageId: { in: 'path', name: 'messageId', required: true, schema: { type: 'string' }, description: 'Id of message' },
+            },
+
             // Reusable error responses. Routes reference the statuses they can
             // return; the description lists the common codes for each.
             responses: {
