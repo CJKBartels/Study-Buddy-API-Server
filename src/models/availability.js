@@ -1,4 +1,5 @@
 import { model, Schema } from 'mongoose'
+import isValidTimeZone from '../assets/timezoneValidation.js'
 
 const availabilitySchema = new Schema({
     user: {
@@ -10,7 +11,11 @@ const availabilitySchema = new Schema({
 
     timezone: {
         type: String,
-        required: true
+        required: true,
+        validate: {
+            validator: (tz) => isValidTimeZone(tz),
+            message: 'Invalid Time Zone'
+        }
     },
 
     blocks: {
@@ -31,7 +36,16 @@ const availabilitySchema = new Schema({
                     type: Number,
                     required: true,
                     min: 1,
-                    max: 1440
+                    max: 1440,
+                    validate: {
+                        // `this` is the block, so the rule can compare two fields.
+                        // Only works under document validation (validate/save),
+                        // which is why the route validates a draft before writing.
+                        validator: function (endMin) {
+                            return endMin > this.startMin
+                        },
+                        message: 'Block must end after it starts'
+                    }
                 }
             }
         ],

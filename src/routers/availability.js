@@ -23,13 +23,20 @@ router.put('/availability/me', auth, async (req, res) => {
     const { user, body } = req
     const { timezone, blocks } = body
 
-    const availability = await Availability.updateOne(
+    // Updates skip most schema rules (and can't run rules that compare two
+    // fields), so validate the full document as a draft first. It's never
+    // saved: the write below stays one atomic upsert, the only code path that
+    // writes Availability (user is unique).
+    const draft = new Availability({ user: user._id, timezone, blocks })
+    await draft.validate()
+
+    const availability = await Availability.findOneAndUpdate(
         { user: user._id },
-        { $set: { timezone, blocks } },
-        { upsert: true }
+        { timezone: draft.timezone, blocks: draft.blocks },
+        { upsert: true, new: true }
     )
 
-    res.status(201).send(availability)
+    res.status(200).send(availability)
 })
 
 export default router
