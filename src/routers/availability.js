@@ -5,7 +5,26 @@ import AppError from '../assets/AppError.js'
 
 const router = new Router()
 
-//Get Availability
+/**
+ * Get Availability
+ *
+ * @openapi
+ * /availability/me:
+ *   get:
+ *     summary: Get your weekly availability
+ *     tags: [Availability]
+ *     responses:
+ *       200:
+ *         description: Your availability
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Availability'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ */
 router.get('/availability/me', auth, async (req, res) => {
     const { user } = req
 
@@ -18,7 +37,33 @@ router.get('/availability/me', auth, async (req, res) => {
     res.status(200).send(availability)
 })
 
-//Replace Availability
+/**
+ * Replace Availability
+ *
+ * @openapi
+ * /availability/me:
+ *   put:
+ *     summary: Replace your weekly availability
+ *     description: Replaces all blocks. Blocks that overlap or touch on the same day are merged, and the result is sorted by day, then start time.
+ *     tags: [Availability]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/AvailabilityPutRequest'
+ *     responses:
+ *       200:
+ *         description: The saved availability, with blocks merged
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Availability'
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ */
 router.put('/availability/me', auth, async (req, res) => {
     const { user, body } = req
     const { timezone, blocks } = body
