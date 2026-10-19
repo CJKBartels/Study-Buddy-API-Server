@@ -109,7 +109,7 @@ So `AssignmentUserState` holds one document per (assignment, user) pair, with th
 
 A JWT stays valid until it expires, and the server has no built-in way to take one back.
 
-Every sign-in pushes its token onto `user.tokens`. The `auth` middleware accepts a token only if its signature checks out and it's still in that array. Signing out removes that one token, so signing out on your laptop leaves your phone signed in.
+Every sign-in pushes its token onto `user.tokens`. The `auth` middleware accepts a token only if its signature checks out and it's still in that array. Signing out removes that one token, so signing out on your laptop leaves your phone signed in. Tokens expire after 7 days, and expired ones are removed at the next sign-in.
 
 **Tradeoff:** every authenticated request needs a database lookup to confirm the token is still on the user. That's the price of revocable tokens, and it's the main thing short-lived, lookup-free JWTs avoid.
 
