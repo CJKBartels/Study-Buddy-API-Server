@@ -143,39 +143,47 @@ router.get('/courses/:courseId/sessions/:sessionId/participants',
     }
 )
 
-//Invite Users
+//Invite User
+// One invite per request. To invite a group, the client sends one request per
+// person, so every success and failure uses the normal response shapes.
 router.post('/courses/:courseId/sessions/:sessionId/invites',
     auth, isCourse, isCourseMember, isSession, isSessionParticipant,
     async (req, res) => {
-        try {
-            const { session, body: invitees, user } = req
+        const { session, body, user } = req
+        const { userId } = body ?? {}
 
-            const failedUserIds = []
-
-            const data = invitees.filter((i) => isValidObjectId(i))
-                .map((i) => {
-                    return {
-                        session: session._id,
-                        user: i,
-                        invitedBy: user._id,
-                        status: 'invited'
-                    }
-                })
-
-            let documents = await SessionParticipant.create(data, { aggregateErrors: true })
-            documents = documents.map((i) => {
-                if (i.session) return i
-
-                return {
-                    code: i.code,
-                    msg: i.errorResponse.errmsg
-                }
-            })
-
-            res.status(200).send(documents)
-        } catch (err) {
-            res.status(500).json(err)
+        if (!isValidObjectId(userId)) {
+            throw new AppError('BAD_REQUEST', { message: 'Invalid user id' })
         }
+
+        // Same atomic upsert as join: create the invite if absent, otherwise
+        // leave the existing doc alone so the table can check it below.
+        const result = await SessionParticipant.findOneAndUpdate(
+            { session: session._id, user: userId },
+            { $setOnInsert: { status: 'invited', invitedBy: user._id } },
+            { upsert: true, new: true, includeResultMetadata: true }
+        )
+        const participant = result.value
+
+        if (result.lastErrorObject.updatedExisting) {
+            if (['invited', 'accepted', 'waitlisted'].includes(participant.status)) {
+                throw new AppError('ALREADY_PARTICIPANT', { message: `User is already ${participant.status}` })
+            }
+
+            // The table allows removed -> invited, but removal is the host's call,
+            // so only the host may undo it.
+            if (participant.status === 'removed' && !session.host.equals(user._id)) {
+                throw new AppError('NOT_SESSION_HOST', { message: 'Only the host can re-invite a removed user' })
+            }
+            assertCanMove(participant, 'invited')
+
+            participant.status = 'invited'
+            participant.invitedBy = user._id
+            participant.respondedAt = undefined
+            await participant.save()
+        }
+
+        res.status(201).send(participant)
     }
 )
 
