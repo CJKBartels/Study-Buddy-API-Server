@@ -73,6 +73,21 @@ async function createAssignment(token, courseId, overrides = {}) {
         .send({ ...baseAssignment(), ...overrides })
 }
 
+function listMine(token, courseId) {
+    return request(app).get(`/courses/${courseId}/my/assignments`).set('Authorization', `Bearer ${token}`)
+}
+
+function listAll(token) {
+    return request(app).get('/assignments').set('Authorization', `Bearer ${token}`)
+}
+
+function setMyState(token, courseId, assignmentId, changes) {
+    return request(app)
+        .patch(`/courses/${courseId}/assignments/${assignmentId}/my-state`)
+        .set('Authorization', `Bearer ${token}`)
+        .send(changes)
+}
+
 // Common fixture: an admin who owns a course, plus a plain member who joined it.
 async function courseWithMember() {
     const admin = await createAndSignIn()
@@ -367,41 +382,41 @@ describe('DELETE /courses/:courseId/assignments/:assignmentId', () => {
 })
 
 describe('GET /courses/:courseId/my/assignments', () => {
-    it('materializes an AssignmentUserState for each assignment on first access', async () => {
-        const { member, course } = await courseWithMember()
-        const created = await createAssignment(member.token, course._id)
-
-        // No state docs before the first call.
-        expect(await AssignmentUserState.countDocuments({})).toBe(0)
-
-        const res = await request(app)
-            .get(`/courses/${course._id}/my/assignments`)
-            .set('Authorization', `Bearer ${member.token}`)
-        expect(res.status).toBe(200)
-        expect(res.body.length).toBe(1)
-        expect(res.body[0].userState).toBeDefined()
-        expect(res.body[0].userState.state).toBe('not_started')
-
-        // The state doc now exists in the database.
-        const persisted = await AssignmentUserState.findOne({
-            assignment: created.body._id,
-            user: member.user._id
-        })
-        expect(persisted).not.toBeNull()
-    })
-
-    it('reuses the same state doc on repeated calls (no duplicates)', async () => {
+    it('returns default state for every assignment without creating state docs', async () => {
         const { member, course } = await courseWithMember()
         await createAssignment(member.token, course._id)
 
-        await request(app)
-            .get(`/courses/${course._id}/my/assignments`)
-            .set('Authorization', `Bearer ${member.token}`)
-        await request(app)
-            .get(`/courses/${course._id}/my/assignments`)
-            .set('Authorization', `Bearer ${member.token}`)
+        const res = await listMine(member.token, course._id)
+        expect(res.status).toBe(200)
+        expect(res.body).toHaveLength(1)
+        expect(res.body[0].userState.state).toBe('not_started')
+        expect(res.body[0].userState.personalDueAt).toBe(baseAssignment().dueAt)
 
-        expect(await AssignmentUserState.countDocuments({})).toBe(1)
+        // Listing is a read: it must not write state docs
+        expect(await AssignmentUserState.countDocuments({})).toBe(0)
+    })
+
+    it('shows only the signed-in user\'s state, never a classmate\'s', async () => {
+        const { admin, member, course } = await courseWithMember()
+        const created = await createAssignment(member.token, course._id)
+        await setMyState(admin.token, course._id, created.body._id, { state: 'in_progress', personalNotes: 'ADMIN PRIVATE NOTE' })
+
+        const res = await listMine(member.token, course._id)
+        expect(res.body).toHaveLength(1)
+        expect(res.body[0].userState.state).toBe('not_started')
+        expect(res.body[0].userState.personalNotes).toBeUndefined()
+    })
+
+    it('shows the user\'s own state once when classmates also have states', async () => {
+        const { admin, member, course } = await courseWithMember()
+        const created = await createAssignment(member.token, course._id)
+        await setMyState(admin.token, course._id, created.body._id, { state: 'complete' })
+        await setMyState(member.token, course._id, created.body._id, { state: 'in_progress', personalNotes: 'mine' })
+
+        const res = await listMine(member.token, course._id)
+        expect(res.body).toHaveLength(1)
+        expect(res.body[0].userState.state).toBe('in_progress')
+        expect(res.body[0].userState.personalNotes).toBe('mine')
     })
 
     it('returns 403 NOT_COURSE_MEMBER for a non-member', async () => {
@@ -514,6 +529,31 @@ describe('GET /assignments', () => {
             .set('Authorization', `Bearer ${user.token}`)
         expect(res.status).toBe(200)
         expect(res.body.length).toBe(1)
+    })
+
+    it('does not create state docs', async () => {
+        const { member, course } = await courseWithMember()
+        await createAssignment(member.token, course._id)
+        await listAll(member.token)
+        expect(await AssignmentUserState.countDocuments({})).toBe(0)
+    })
+
+    it('shows only the signed-in user\'s state, once per assignment', async () => {
+        const { admin, member, course } = await courseWithMember()
+        const created = await createAssignment(member.token, course._id)
+        await setMyState(admin.token, course._id, created.body._id, { personalNotes: 'ADMIN PRIVATE NOTE' })
+
+        const res = await listAll(member.token)
+        expect(res.body).toHaveLength(1)
+        expect(res.body[0].userState.personalNotes).toBeUndefined()
+    })
+
+    it('includes course details but never the join code', async () => {
+        const { member, course } = await courseWithMember()
+        await createAssignment(member.token, course._id)
+        const res = await listAll(member.token)
+        expect(res.body[0].course.courseName).toBe(course.courseName)
+        expect(res.body[0].course.joinCode).toBeUndefined()
     })
 
     it('returns 401 UNAUTHORIZED when unauthenticated', async () => {

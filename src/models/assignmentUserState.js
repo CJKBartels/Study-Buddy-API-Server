@@ -50,6 +50,29 @@ assignmentUserStateSchema.statics.findOrCreate = async (assignmentId, userId, co
         { upsert: true, new: true })
 }
 
+// Attach one user's state to each assignment. Absence means default: with no
+// state doc, the user hasn't started, has no notes, and follows the official
+// due date. personalDueAt shows the user's own date if they picked one,
+// otherwise the assignment's. Plain data in, plain data out.
+export function withUserState(assignments, states) {
+    const stateFor = new Map(states.map((state) => [state.assignment.toString(), state]))
+
+    return assignments.map((assignment) => {
+        const state = stateFor.get(assignment._id.toString())
+
+        return {
+            ...assignment,
+            userState: {
+                _id: state?._id ?? null,
+                state: state?.state ?? 'not_started',
+                personalNotes: state?.personalNotes,
+                personalDueAt: state?.personalDueAt ?? assignment.dueAt,
+                completedAt: state?.completedAt
+            }
+        }
+    })
+}
+
 const AssignmentUserState = model('AssignmentUserState', assignmentUserStateSchema)
 
 export default AssignmentUserState

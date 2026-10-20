@@ -3,7 +3,7 @@ import auth from '../middleware/auth.js'
 import Assignment from '../models/assignment.js'
 import { isCourse, isCourseMember, isCourseModerator } from '../middleware/courseAccess.js'
 import { isAssignment } from '../middleware/assignmentAccess.js'
-import AssignmentUserState from '../models/assignmentUserState.js'
+import AssignmentUserState, { withUserState } from '../models/assignmentUserState.js'
 import CourseMembership from '../models/courseMembership.js'
 import AppError from '../assets/AppError.js'
 
@@ -441,51 +441,16 @@ router.get('/courses/:courseId/my/assignments',
             delete filter.status
         }
 
-        const assignments = await Assignment.aggregate([
-            { $match: filter },
-            {
-                $lookup: {
-                    from: 'assignmentuserstates',
-                    localField: '_id',
-                    foreignField: 'assignment',
-                    as: 'userState'
-                }
-            },
-            {
-                $unwind: {
-                    path: '$userState',
-                    preserveNullAndEmptyArrays: true
-                }
-            },
-            {
-                $project: {
-                    __v: 0,
-                    updatedAt: 0,
-                    'userState.assignment': 0,
-                    'userState.course': 0,
-                    'userState.user': 0,
-                    'userState.createdAt': 0,
-                    'userState.updatedAt': 0,
-                    'userState.__v': 0
-                }
-            }
+        const assignments = await Assignment.find(filter, { __v: 0, updatedAt: 0 }).lean()
 
-        ])
+        // Only this user's states. A missing one means the defaults, so listing
+        // never writes (see withUserState).
+        const states = await AssignmentUserState.find({
+            user: user._id,
+            assignment: { $in: assignments.map((assignment) => assignment._id) }
+        }).lean()
 
-        for (let assignment of assignments) {
-            if (!assignment.userState) {
-                const userState = await AssignmentUserState.findOrCreate(
-                    assignment._id, user._id, course._id, assignment.dueAt)
-
-                assignment.userState = {
-                    _id: userState._id,
-                    personalDueAt: userState.personalDueAt,
-                    state: userState.state,
-                }
-            }
-        }
-
-        res.status(200).send(assignments)
+        res.status(200).send(withUserState(assignments, states))
     })
 
 /**
@@ -626,65 +591,20 @@ router.get('/assignments', auth, async (req, res) => {
         delete filter.status
     }
 
-    const assignments = await Assignment.aggregate([
-        { $match: filter },
-        {
-            $lookup: {
-                from: 'courses',
-                localField: 'course',
-                foreignField: '_id',
-                as: 'course'
-            }
-        },
-        {
-            $unwind: {
-                path: '$course',
-                preserveNullAndEmptyArrays: true
-            }
-        },
-        {
-            $lookup: {
-                from: 'assignmentuserstates',
-                localField: '_id',
-                foreignField: 'assignment',
-                as: 'userState'
-            }
-        },
-        {
-            $unwind: {
-                path: '$userState',
-                preserveNullAndEmptyArrays: true
-            }
-        },
-        {
-            $project: {
-                __v: 0,
-                updatedAt: 0,
-                'userState.assignment': 0,
-                'userState.course': 0,
-                'userState.user': 0,
-                'userState.createdAt': 0,
-                'userState.updatedAt': 0,
-                'userState.__v': 0
-            }
-        }
+    // The course is shown with each assignment, but never its join code,
+    // which only admins may see
+    const assignments = await Assignment.find(filter, { __v: 0, updatedAt: 0 })
+        .populate('course', '-joinCode -__v')
+        .lean()
 
-    ])
+    // Only this user's states. A missing one means the defaults, so listing
+    // never writes (see withUserState).
+    const states = await AssignmentUserState.find({
+        user: user._id,
+        assignment: { $in: assignments.map((assignment) => assignment._id) }
+    }).lean()
 
-    for (let assignment of assignments) {
-        if (!assignment.userState) {
-            const userState = await AssignmentUserState.findOrCreate(
-                assignment._id, user._id, assignment.course, assignment.dueAt)
-
-            assignment.userState = {
-                _id: userState._id,
-                personalDueAt: userState.personalDueAt,
-                state: userState.state,
-            }
-        }
-    }
-
-    res.status(200).send(assignments)
+    res.status(200).send(withUserState(assignments, states))
 }
 )
 export default router

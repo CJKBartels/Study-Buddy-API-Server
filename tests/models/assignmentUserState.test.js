@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import mongoose from 'mongoose'
-import AssignmentUserState from '../../src/models/assignmentUserState.js'
+import AssignmentUserState, { withUserState } from '../../src/models/assignmentUserState.js'
 
 const newId = () => new mongoose.Types.ObjectId()
 
@@ -115,5 +115,44 @@ describe('AssignmentUserState model', () => {
             expect(a._id.equals(b._id)).toBe(false)
             expect(await AssignmentUserState.countDocuments({ assignment })).toBe(2)
         })
+    })
+})
+
+describe('withUserState', () => {
+    const officialDue = new Date('2030-05-01T00:00:00.000Z')
+    const assignment = (id) => ({ _id: id, title: 'PS', dueAt: officialDue })
+
+    it('fills defaults for an assignment with no state', () => {
+        const id = newId()
+        const [row] = withUserState([assignment(id)], [])
+        expect(row.title).toBe('PS')
+        expect(row.userState).toEqual({
+            _id: null, state: 'not_started', personalNotes: undefined, personalDueAt: officialDue, completedAt: undefined
+        })
+    })
+
+    it('uses the stored state when there is one', () => {
+        const id = newId()
+        const stored = { _id: newId(), assignment: id, state: 'complete', personalNotes: 'done' }
+        const [row] = withUserState([assignment(id)], [stored])
+        expect(row.userState.state).toBe('complete')
+        expect(row.userState.personalNotes).toBe('done')
+        expect(row.userState._id).toBe(stored._id)
+    })
+
+    it('shows the user\'s own due date over the official one', () => {
+        const id = newId()
+        const mine = new Date('2030-04-20T00:00:00.000Z')
+        const [row] = withUserState([assignment(id)], [{ _id: newId(), assignment: id, personalDueAt: mine }])
+        expect(row.userState.personalDueAt).toBe(mine)
+    })
+
+    it('matches states to assignments by id, regardless of order', () => {
+        const [a, b] = [newId(), newId()]
+        const rows = withUserState(
+            [assignment(a), assignment(b)],
+            [{ _id: newId(), assignment: b, state: 'complete' }]
+        )
+        expect(rows.map((r) => r.userState.state)).toEqual(['not_started', 'complete'])
     })
 })
