@@ -230,8 +230,8 @@ async function invite(token, base, userId) {
     return call('post', token, `${base}/invites`).send({ userId })
 }
 
-async function rsvp(token, base, decision) {
-    return call('patch', token, `${base}/participants/me/${decision}`)
+async function rsvp(token, base, status) {
+    return call('patch', token, `${base}/participants/me`).send({ status })
 }
 
 // Puts the member through invite -> accept -> removed by the host.
@@ -239,7 +239,7 @@ async function removedMember() {
     const fixture = await sessionWithMember()
     const { host, member, base } = fixture
     await invite(host.token, base, member.user._id)
-    await rsvp(member.token, base, 'true')
+    await rsvp(member.token, base, 'accepted')
     await call('delete', host.token, `${base}/participants/${member.user._id}`)
     return fixture
 }
@@ -295,27 +295,50 @@ describe('POST /courses/:courseId/sessions/:sessionId/join', () => {
     it('returns 409 INVALID_STATUS_CHANGE for a user who declined', async () => {
         const { host, member, base } = await sessionWithMember()
         await invite(host.token, base, member.user._id)
-        await rsvp(member.token, base, 'false')
+        await rsvp(member.token, base, 'declined')
         const res = await call('post', member.token, `${base}/join`)
         expect(res.status).toBe(409)
         expect(res.body.error.code).toBe('INVALID_STATUS_CHANGE')
     })
 })
 
-describe('PATCH /courses/:courseId/sessions/:sessionId/participants/me/:decision', () => {
-    it('accepting an invite lets the user see participants', async () => {
+describe('PATCH /courses/:courseId/sessions/:sessionId/participants/me', () => {
+    it('accepting an invite returns the participant and lets the user see participants', async () => {
         const { host, member, base } = await sessionWithMember()
         await invite(host.token, base, member.user._id)
-        const res = await rsvp(member.token, base, 'true')
+        const res = await rsvp(member.token, base, 'accepted')
         expect(res.status).toBe(200)
+        expect(res.body.status).toBe('accepted')
+        expect(res.body.user).toBe(member.user._id)
         const participants = await call('get', member.token, `${base}/participants`)
         expect(participants.status).toBe(200)
     })
 
+    it('declining returns the participant with status declined', async () => {
+        const { host, member, base } = await sessionWithMember()
+        await invite(host.token, base, member.user._id)
+        const res = await rsvp(member.token, base, 'declined')
+        expect(res.status).toBe(200)
+        expect(res.body.status).toBe('declined')
+    })
+
+    it.each([['an unknown answer', 'maybe'], ['a missing answer', undefined]])(
+        'returns 400 VALIDATION_ERROR for %s, and changes nothing', async (_, status) => {
+            const { host, member, base } = await sessionWithMember()
+            await invite(host.token, base, member.user._id)
+            const res = await rsvp(member.token, base, status)
+            expect(res.status).toBe(400)
+            expect(res.body.error.code).toBe('VALIDATION_ERROR')
+            expect(res.body.error.details.status).toBeDefined()
+
+            const invited = await call('get', host.token, `${base}/participants?status=invited`)
+            expect(invited.body).toHaveLength(1)
+        })
+
     it('declining an invite keeps the user out', async () => {
         const { host, member, base } = await sessionWithMember()
         await invite(host.token, base, member.user._id)
-        const res = await rsvp(member.token, base, 'false')
+        const res = await rsvp(member.token, base, 'declined')
         expect(res.status).toBe(200)
         const participants = await call('get', member.token, `${base}/participants`)
         expect(participants.body.error.code).toBe('NOT_SESSION_PARTICIPANT')
@@ -323,7 +346,7 @@ describe('PATCH /courses/:courseId/sessions/:sessionId/participants/me/:decision
 
     it('returns 403 NOT_INVITED for a user with no invite', async () => {
         const { member, base } = await sessionWithMember()
-        const res = await rsvp(member.token, base, 'true')
+        const res = await rsvp(member.token, base, 'accepted')
         expect(res.status).toBe(403)
         expect(res.body.error.code).toBe('NOT_INVITED')
     })
@@ -331,15 +354,15 @@ describe('PATCH /courses/:courseId/sessions/:sessionId/participants/me/:decision
     it('returns 409 ALREADY_PARTICIPANT when accepting twice', async () => {
         const { host, member, base } = await sessionWithMember()
         await invite(host.token, base, member.user._id)
-        await rsvp(member.token, base, 'true')
-        const res = await rsvp(member.token, base, 'true')
+        await rsvp(member.token, base, 'accepted')
+        const res = await rsvp(member.token, base, 'accepted')
         expect(res.status).toBe(409)
         expect(res.body.error.code).toBe('ALREADY_PARTICIPANT')
     })
 
     it('returns 409 INVALID_STATUS_CHANGE when a removed user accepts again', async () => {
         const { member, base } = await removedMember()
-        const res = await rsvp(member.token, base, 'true')
+        const res = await rsvp(member.token, base, 'accepted')
         expect(res.status).toBe(409)
         expect(res.body.error.code).toBe('INVALID_STATUS_CHANGE')
 
@@ -350,8 +373,8 @@ describe('PATCH /courses/:courseId/sessions/:sessionId/participants/me/:decision
     it('returns 409 INVALID_STATUS_CHANGE when a user who declined accepts later', async () => {
         const { host, member, base } = await sessionWithMember()
         await invite(host.token, base, member.user._id)
-        await rsvp(member.token, base, 'false')
-        const res = await rsvp(member.token, base, 'true')
+        await rsvp(member.token, base, 'declined')
+        const res = await rsvp(member.token, base, 'accepted')
         expect(res.status).toBe(409)
         expect(res.body.error.code).toBe('INVALID_STATUS_CHANGE')
     })
@@ -427,7 +450,7 @@ describe('session capacity', () => {
         const { host, member, latecomer, base } = await fullSession()
         await invite(host.token, base, latecomer.user._id)
         await call('post', member.token, `${base}/join`)
-        await rsvp(latecomer.token, base, 'true')
+        await rsvp(latecomer.token, base, 'accepted')
 
         const waitlisted = await call('get', host.token, `${base}/participants?status=waitlisted`)
         expect(waitlisted.body).toHaveLength(1)
@@ -447,7 +470,7 @@ describe('session capacity', () => {
         const { member, latecomer, base } = await fullSession()
         await call('post', member.token, `${base}/join`)
         await call('post', latecomer.token, `${base}/join`)
-        const res = await rsvp(latecomer.token, base, 'true')
+        const res = await rsvp(latecomer.token, base, 'accepted')
         expect(res.status).toBe(409)
         expect(res.body.error.code).toBe('INVALID_STATUS_CHANGE')
     })
@@ -507,11 +530,11 @@ describe('POST /courses/:courseId/sessions/:sessionId/invites', () => {
     it('re-invites a user who declined, who can then accept', async () => {
         const { host, member, base } = await sessionWithMember()
         await invite(host.token, base, member.user._id)
-        await rsvp(member.token, base, 'false')
+        await rsvp(member.token, base, 'declined')
         const res = await invite(host.token, base, member.user._id)
         expect(res.status).toBe(201)
         expect(res.body.status).toBe('invited')
-        const accepted = await rsvp(member.token, base, 'true')
+        const accepted = await rsvp(member.token, base, 'accepted')
         expect(accepted.status).toBe(200)
     })
 
