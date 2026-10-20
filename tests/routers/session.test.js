@@ -213,6 +213,7 @@ describe('DELETE /courses/:courseId/sessions/:sessionId', () => {
         const { host, base } = await sessionWithMember()
         const res = await call('delete', host.token, base)
         expect(res.status).toBe(200)
+        expect(res.body.status).toBe('cancelled')
         const after = await call('get', host.token, base)
         expect(after.body.status).toBe('cancelled')
     })
@@ -672,6 +673,8 @@ describe('DELETE /courses/:courseId/sessions/:sessionId/messages/:messageId', ()
         const sent = await sendMessage(member.token, base, 'bye')
         const res = await call('delete', member.token, `${base}/messages/${sent.body._id}`)
         expect(res.status).toBe(200)
+        expect(res.body._id).toBe(sent.body._id)
+        expect(res.body.deletedAt).toBeDefined()
     })
 
     it('lets the host delete anyone\'s message', async () => {
