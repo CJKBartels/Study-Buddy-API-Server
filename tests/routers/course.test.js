@@ -615,7 +615,7 @@ describe('PATCH /courses/:courseId/members/:userId', () => {
 })
 
 describe('DELETE /courses/:courseId/members/me', () => {
-    it('returns 200 and removes the membership from the database', async () => {
+    it('returns 204 and removes the membership from the database', async () => {
         const admin = await createAndSignIn()
         const course = await createCourse(admin.token)
         const member = await createAndSignIn()
@@ -624,7 +624,7 @@ describe('DELETE /courses/:courseId/members/me', () => {
         const res = await request(app)
             .delete(`/courses/${course._id}/members/me`)
             .set('Authorization', `Bearer ${member.token}`)
-        expect(res.status).toBe(200)
+        expect(res.status).toBe(204)
 
         const persisted = await CourseMembership.findOne({ course: course._id, user: member.user._id })
         expect(persisted).toBeNull()
@@ -644,7 +644,7 @@ describe('DELETE /courses/:courseId/members/me', () => {
 })
 
 describe('DELETE /courses/:courseId/members/:userId', () => {
-    it('returns 200 and removes the target membership from the database', async () => {
+    it('returns 204 and removes the target membership from the database', async () => {
         const admin = await createAndSignIn()
         const course = await createCourse(admin.token)
         const member = await createAndSignIn()
@@ -653,10 +653,22 @@ describe('DELETE /courses/:courseId/members/:userId', () => {
         const res = await request(app)
             .delete(`/courses/${course._id}/members/${member.user._id}`)
             .set('Authorization', `Bearer ${admin.token}`)
-        expect(res.status).toBe(200)
+        expect(res.status).toBe(204)
 
         const persisted = await CourseMembership.findOne({ course: course._id, user: member.user._id })
         expect(persisted).toBeNull()
+    })
+
+    it('returns 404 NOT_FOUND for a user who is not a member', async () => {
+        const admin = await createAndSignIn()
+        const course = await createCourse(admin.token)
+        const outsider = await createAndSignIn()
+
+        const res = await request(app)
+            .delete(`/courses/${course._id}/members/${outsider.user._id}`)
+            .set('Authorization', `Bearer ${admin.token}`)
+        expect(res.status).toBe(404)
+        expect(res.body.error.code).toBe('NOT_FOUND')
     })
 
     it('returns 403 NOT_COURSE_ADMIN for a non-admin member', async () => {

@@ -280,15 +280,6 @@ const options = {
                     }
                 },
 
-                // Raw MongoDB deleteOne result, returned by the member removal routes
-                DeleteResult: {
-                    type: 'object',
-                    properties: {
-                        acknowledged: { type: 'boolean' },
-                        deletedCount: { type: 'integer' },
-                    }
-                },
-
                 Availability: {
                     allOf: [
                         { $ref: '#/components/schemas/AvailabilityPutRequest' },
