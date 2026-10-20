@@ -3,6 +3,14 @@
 Design decisions and lessons from working in this codebase.
 Newest entries at the top.
 
+## 2026-10-20 — Session follow-ups: consistent responses, leave, waitlist promotion
+
+- **Task:** finish the follow-ups from #3 (#18): plain-string and raw-result responses, RSVP's decision in the URL, no way to leave, no waitlist promotion.
+- **Decision:** one rule for success responses: if the thing still exists, return it; if it's gone, 204. RSVP takes `{ status }` in the body. Leave is `DELETE .../participants/me` (the host can't leave). Promotion is a helper, `promoteFromWaitlist`, called by leave, remove, and capacity changes; each promotion is one atomic `findOneAndUpdate` on the oldest waitlisted participant.
+- **Alternatives considered:** 204 everywhere (the client refetches to see state) or documents everywhere (nothing to return for real deletes). For promotion, Mongoose save hooks (can't be forgotten, but invisible, and join/invite write with `findOneAndUpdate`, which skips save hooks).
+- **Lesson:** route order is behavior. Before the leave route existed, `DELETE .../participants/me` matched `/participants/:userId` with `userId = "me"` and returned a 400 for the wrong reason, which made one new test pass by accident. Specific paths go first, and a test that passes before the code exists deserves a second look.
+- **Revisit:** promoted users aren't told; notifications come after the WebSocket milestone. Lowering capacity never demotes anyone. Promotion counts then promotes, so simultaneous triggers could over-fill by one, the same accepted race as joining.
+
 ## 2026-10-19 — Token expiry, pruning, and atomic token writes
 
 - **Task:** make auth tokens expire and stop `user.tokens` growing forever (#13).
