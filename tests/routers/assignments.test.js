@@ -489,6 +489,69 @@ describe('PATCH /courses/:courseId/assignments/:assignmentId/my-state', () => {
     })
 })
 
+describe('personal due dates', () => {
+    const OFFICIAL = baseAssignment().dueAt                 // 2030-05-01
+    const MOVED = '2030-05-03T00:00:00.000Z'
+    const MINE = '2030-04-20T00:00:00.000Z'
+
+    function moveDueDate(token, courseId, assignmentId, dueAt) {
+        return request(app)
+            .patch(`/courses/${courseId}/assignments/${assignmentId}`)
+            .set('Authorization', `Bearer ${token}`)
+            .send({ dueAt })
+    }
+
+    async function myDueDate(token, courseId) {
+        const res = await listMine(token, courseId)
+        return res.body[0].userState.personalDueAt
+    }
+
+    it('keeps the user\'s own due date when they later edit only their notes', async () => {
+        const { member, course } = await courseWithMember()
+        const created = await createAssignment(member.token, course._id)
+        await setMyState(member.token, course._id, created.body._id, { personalDueAt: MINE })
+
+        const res = await setMyState(member.token, course._id, created.body._id, { personalNotes: 'edited' })
+        expect(res.body.personalDueAt).toBe(MINE)
+        expect(await myDueDate(member.token, course._id)).toBe(MINE)
+    })
+
+    it('shows the official due date in the my-state response when the user never picked one', async () => {
+        const { member, course } = await courseWithMember()
+        const created = await createAssignment(member.token, course._id)
+        const res = await setMyState(member.token, course._id, created.body._id, { state: 'in_progress' })
+        expect(res.body.personalDueAt).toBe(OFFICIAL)
+    })
+
+    it('follows a moved official due date for users who never picked their own, even with a state', async () => {
+        const { admin, member, course } = await courseWithMember()
+        const created = await createAssignment(member.token, course._id)
+        await setMyState(member.token, course._id, created.body._id, { state: 'in_progress' })
+
+        await moveDueDate(admin.token, course._id, created.body._id, MOVED)
+        expect(await myDueDate(member.token, course._id)).toBe(MOVED)
+    })
+
+    it('keeps the user\'s own due date when the official one moves', async () => {
+        const { admin, member, course } = await courseWithMember()
+        const created = await createAssignment(member.token, course._id)
+        await setMyState(member.token, course._id, created.body._id, { personalDueAt: MINE })
+
+        await moveDueDate(admin.token, course._id, created.body._id, MOVED)
+        expect(await myDueDate(member.token, course._id)).toBe(MINE)
+    })
+
+    it('goes back to the official due date when the user clears their own with null', async () => {
+        const { member, course } = await courseWithMember()
+        const created = await createAssignment(member.token, course._id)
+        await setMyState(member.token, course._id, created.body._id, { personalDueAt: MINE })
+
+        const res = await setMyState(member.token, course._id, created.body._id, { personalDueAt: null })
+        expect(res.body.personalDueAt).toBe(OFFICIAL)
+        expect(await myDueDate(member.token, course._id)).toBe(OFFICIAL)
+    })
+})
+
 describe('GET /assignments', () => {
     it('returns assignments across all of the user\'s active courses with userState attached', async () => {
         const user = await createAndSignIn()

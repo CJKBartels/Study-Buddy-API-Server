@@ -37,16 +37,14 @@ assignmentUserStateSchema.index({ course: 1, user: 1 })
 // Ensure a state doc exists for this (assignment, user) pair, creating one with
 // default fields if absent. The upsert is atomic and backed by the unique
 // { assignment, user } index above, so concurrent first-access requests can't
-// race into duplicate-key errors.
-assignmentUserStateSchema.statics.findOrCreate = async (assignmentId, userId, courseId, dueAt) => {
+// race into duplicate-key errors. $setOnInsert only writes on creation, so an
+// existing doc is returned untouched (a plain update overwrote the user's own
+// personalDueAt on every call). No due date is copied in: personalDueAt stays
+// empty until the user picks one, and readers fall back to the assignment's.
+assignmentUserStateSchema.statics.findOrCreate = async (assignmentId, userId, courseId) => {
     return await AssignmentUserState.findOneAndUpdate(
         { assignment: assignmentId, user: userId },
-        {
-            assignment: assignmentId,
-            user: userId,
-            course: courseId,
-            personalDueAt: dueAt
-        },
+        { $setOnInsert: { course: courseId } },
         { upsert: true, new: true })
 }
 

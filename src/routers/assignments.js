@@ -511,11 +511,17 @@ router.patch('/courses/:courseId/assignments/:assignmentId/my-state',
     async (req, res) => {
         const { body: mods, course, user, assignment } = req
 
-        const userState = await AssignmentUserState.findOrCreate(
-            assignment._id, user._id, course._id, assignment.dueAt)
+        const userState = await AssignmentUserState.findOrCreate(assignment._id, user._id, course._id)
+
+        // Same rule as the lists: show the user's own due date, or the
+        // official one if they never picked (or cleared theirs with null)
+        const withEffectiveDueAt = (state) => ({
+            ...state.toJSON(),
+            personalDueAt: state.personalDueAt ?? assignment.dueAt
+        })
 
         if (!mods) {
-            return res.status(200).send(userState)
+            return res.status(200).send(withEffectiveDueAt(userState))
         }
 
         const props = Object.keys(mods)
@@ -532,7 +538,7 @@ router.patch('/courses/:courseId/assignments/:assignmentId/my-state',
         // A ValidationError from save() propagates to the central handler as a
         // 400 VALIDATION_ERROR with per-field details.
         await userState.save()
-        return res.status(200).send(userState)
+        return res.status(200).send(withEffectiveDueAt(userState))
     })
 
 /**

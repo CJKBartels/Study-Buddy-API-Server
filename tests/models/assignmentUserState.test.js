@@ -52,19 +52,19 @@ describe('AssignmentUserState model', () => {
     })
 
     describe('findOrCreate', () => {
-        it('creates a new doc with the given fields and default state when none exists', async () => {
+        it('creates a new doc with the given ids and default state when none exists', async () => {
             const assignment = newId()
             const user = newId()
             const course = newId()
-            const dueAt = new Date('2030-01-01T00:00:00.000Z')
 
-            const doc = await AssignmentUserState.findOrCreate(assignment, user, course, dueAt)
+            const doc = await AssignmentUserState.findOrCreate(assignment, user, course)
 
             expect(doc._id).toBeDefined()
             expect(doc.assignment.equals(assignment)).toBe(true)
             expect(doc.user.equals(user)).toBe(true)
             expect(doc.course.equals(course)).toBe(true)
-            expect(doc.personalDueAt.toISOString()).toBe(dueAt.toISOString())
+            // No copy of the due date: the user follows the official one until they pick their own
+            expect(doc.personalDueAt).toBeUndefined()
             expect(doc.state).toBe('not_started')
 
             const count = await AssignmentUserState.countDocuments({ assignment, user })
@@ -75,10 +75,9 @@ describe('AssignmentUserState model', () => {
             const assignment = newId()
             const user = newId()
             const course = newId()
-            const dueAt = new Date('2030-01-01T00:00:00.000Z')
 
-            const first = await AssignmentUserState.findOrCreate(assignment, user, course, dueAt)
-            const second = await AssignmentUserState.findOrCreate(assignment, user, course, dueAt)
+            const first = await AssignmentUserState.findOrCreate(assignment, user, course)
+            const second = await AssignmentUserState.findOrCreate(assignment, user, course)
 
             expect(second._id.equals(first._id)).toBe(true)
 
@@ -90,11 +89,10 @@ describe('AssignmentUserState model', () => {
             const assignment = newId()
             const user = newId()
             const course = newId()
-            const dueAt = new Date('2030-01-01T00:00:00.000Z')
 
             const results = await Promise.all(
                 Array.from({ length: 5 }, () =>
-                    AssignmentUserState.findOrCreate(assignment, user, course, dueAt))
+                    AssignmentUserState.findOrCreate(assignment, user, course))
             )
 
             const count = await AssignmentUserState.countDocuments({ assignment, user })
@@ -104,13 +102,28 @@ describe('AssignmentUserState model', () => {
             expect(uniqueIds.size).toBe(1)
         })
 
+        it('never overwrites fields on an existing doc', async () => {
+            const assignment = newId()
+            const user = newId()
+            const course = newId()
+            const mine = new Date('2030-04-20T00:00:00.000Z')
+
+            const created = await AssignmentUserState.findOrCreate(assignment, user, course)
+            created.personalDueAt = mine
+            created.state = 'in_progress'
+            await created.save()
+
+            const again = await AssignmentUserState.findOrCreate(assignment, user, course)
+            expect(again.personalDueAt.toISOString()).toBe(mine.toISOString())
+            expect(again.state).toBe('in_progress')
+        })
+
         it('keeps distinct docs for different users on the same assignment', async () => {
             const assignment = newId()
             const course = newId()
-            const dueAt = new Date('2030-01-01T00:00:00.000Z')
 
-            const a = await AssignmentUserState.findOrCreate(assignment, newId(), course, dueAt)
-            const b = await AssignmentUserState.findOrCreate(assignment, newId(), course, dueAt)
+            const a = await AssignmentUserState.findOrCreate(assignment, newId(), course)
+            const b = await AssignmentUserState.findOrCreate(assignment, newId(), course)
 
             expect(a._id.equals(b._id)).toBe(false)
             expect(await AssignmentUserState.countDocuments({ assignment })).toBe(2)
