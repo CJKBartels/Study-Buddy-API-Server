@@ -538,7 +538,7 @@ router.post('/courses/:courseId/sessions/:sessionId/join',
  * RSVP
  *
  * @openapi
- * /courses/{courseId}/sessions/{sessionId}/participants/me/{decision}:
+ * /courses/{courseId}/sessions/{sessionId}/participants/me:
  *   patch:
  *     summary: Answer an invite
  *     description: Only works while invited. Accepting a full session waitlists you.
@@ -546,21 +546,24 @@ router.post('/courses/:courseId/sessions/:sessionId/join',
  *     parameters:
  *       - $ref: '#/components/parameters/CourseId'
  *       - $ref: '#/components/parameters/SessionId'
- *       - in: path
- *         name: decision
- *         required: true
- *         schema:
- *           type: string
- *           enum: ['true', 'false']
- *         description: "'true' accepts; anything else declines"
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [status]
+ *             properties:
+ *               status:
+ *                 type: string
+ *                 enum: [accepted, declined]
  *     responses:
  *       200:
- *         description: Answer recorded
+ *         description: Your participant record (status accepted, waitlisted, or declined)
  *         content:
- *           text/plain:
+ *           application/json:
  *             schema:
- *               type: string
- *               example: User has joined the session
+ *               $ref: '#/components/schemas/SessionParticipant'
  *       400:
  *         $ref: '#/components/responses/BadRequest'
  *       401:
@@ -572,10 +575,17 @@ router.post('/courses/:courseId/sessions/:sessionId/join',
  *       409:
  *         $ref: '#/components/responses/Conflict'
  */
-router.patch('/courses/:courseId/sessions/:sessionId/participants/me/:decision',
+router.patch('/courses/:courseId/sessions/:sessionId/participants/me',
     auth, isCourse, isCourseMember, isSession,
     async (req, res) => {
-        const { user, session, params } = req
+        const { user, session, body } = req
+        const answer = body?.status
+
+        // Only the two answers an invite allows; anything else is refused
+        // instead of silently counting as a decline
+        if (!['accepted', 'declined'].includes(answer)) {
+            throw new AppError('VALIDATION_ERROR', { details: { status: 'Must be accepted or declined' } })
+        }
 
         const participant = await SessionParticipant.findOne({ session: session._id, user: user._id })
 
@@ -583,7 +593,7 @@ router.patch('/courses/:courseId/sessions/:sessionId/participants/me/:decision',
             throw new AppError('NOT_INVITED')
         }
 
-        const accepting = params.decision === 'true'
+        const accepting = answer === 'accepted'
 
         if (accepting && participant.status === 'accepted') {
             throw new AppError('ALREADY_PARTICIPANT')
@@ -603,7 +613,7 @@ router.patch('/courses/:courseId/sessions/:sessionId/participants/me/:decision',
         participant.respondedAt = new Date()
         await participant.save()
 
-        res.status(200).send('User has joined the session')
+        res.status(200).send(participant)
     }
 )
 
