@@ -280,12 +280,11 @@ router.patch('/courses/:courseId/sessions/:sessionId',
  *       - $ref: '#/components/parameters/SessionId'
  *     responses:
  *       200:
- *         description: Cancelled
+ *         description: The session, now cancelled
  *         content:
- *           text/plain:
+ *           application/json:
  *             schema:
- *               type: string
- *               example: Session Cancelled Successfully
+ *               $ref: '#/components/schemas/Session'
  *       400:
  *         $ref: '#/components/responses/BadRequest'
  *       401:
@@ -303,7 +302,7 @@ router.delete('/courses/:courseId/sessions/:sessionId',
         session.status = 'cancelled'
         await session.save()
 
-        res.status(200).send('Session Cancelled Successfully')
+        res.status(200).send(session)
     }
 )
 
@@ -880,12 +879,11 @@ router.patch('/courses/:courseId/sessions/:sessionId/messages/:messageId',
  *       - $ref: '#/components/parameters/MessageId'
  *     responses:
  *       200:
- *         description: Deleted
+ *         description: The message, with deletedAt set
  *         content:
- *           text/plain:
+ *           application/json:
  *             schema:
- *               type: string
- *               example: Message deleted successfully
+ *               $ref: '#/components/schemas/SessionMessage'
  *       400:
  *         $ref: '#/components/responses/BadRequest'
  *       401:
@@ -917,7 +915,7 @@ router.delete('/courses/:courseId/sessions/:sessionId/messages/:messageId',
         message.deletedAt = new Date()
         await message.save()
 
-        res.status(200).send('Message deleted successfully')
+        res.status(200).send(message)
     }
 )
 
