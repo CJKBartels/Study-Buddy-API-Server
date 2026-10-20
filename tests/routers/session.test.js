@@ -476,6 +476,139 @@ describe('session capacity', () => {
     })
 })
 
+describe('DELETE /courses/:courseId/sessions/:sessionId/participants/me', () => {
+    const leave = (token, base) => call('delete', token, `${base}/participants/me`)
+
+    it('returns 200 with the participant, now left, and ends their access', async () => {
+        const { member, base } = await sessionWithMember()
+        await call('post', member.token, `${base}/join`)
+        const res = await leave(member.token, base)
+        expect(res.status).toBe(200)
+        expect(res.body.status).toBe('left')
+
+        const participants = await call('get', member.token, `${base}/participants`)
+        expect(participants.body.error.code).toBe('NOT_SESSION_PARTICIPANT')
+    })
+
+    it('lets a waitlisted user leave the waitlist', async () => {
+        const { host, member, base } = await sessionWithMember({ capacity: 1 })
+        const res = await call('post', member.token, `${base}/join`)
+        expect(res.body.status).toBe('waitlisted')
+        const left = await leave(member.token, base)
+        expect(left.body.status).toBe('left')
+
+        const waitlisted = await call('get', host.token, `${base}/participants?status=waitlisted`)
+        expect(waitlisted.body).toHaveLength(0)
+    })
+
+    it('returns 400 BAD_REQUEST when the host tries to leave', async () => {
+        const { host, base } = await sessionWithMember()
+        const res = await leave(host.token, base)
+        expect(res.status).toBe(400)
+        expect(res.body.error.code).toBe('BAD_REQUEST')
+    })
+
+    it('returns 404 PARTICIPANT_NOT_FOUND for a user not in the session', async () => {
+        const { member, base } = await sessionWithMember()
+        const res = await leave(member.token, base)
+        expect(res.status).toBe(404)
+        expect(res.body.error.code).toBe('PARTICIPANT_NOT_FOUND')
+    })
+
+    it('returns 409 INVALID_STATUS_CHANGE for an invited user (they decline instead)', async () => {
+        const { host, member, base } = await sessionWithMember()
+        await invite(host.token, base, member.user._id)
+        const res = await leave(member.token, base)
+        expect(res.status).toBe(409)
+        expect(res.body.error.code).toBe('INVALID_STATUS_CHANGE')
+    })
+
+    it('returns 409 INVALID_STATUS_CHANGE when leaving twice', async () => {
+        const { member, base } = await sessionWithMember()
+        await call('post', member.token, `${base}/join`)
+        await leave(member.token, base)
+        const res = await leave(member.token, base)
+        expect(res.status).toBe(409)
+        expect(res.body.error.code).toBe('INVALID_STATUS_CHANGE')
+    })
+})
+
+describe('waitlist promotion', () => {
+    // Full session (capacity 2: host + member) with `count` users waitlisted,
+    // joined in order, so the first one has waited longest.
+    async function fullSessionWithWaitlist(count) {
+        const fixture = await sessionWithMember({ capacity: 2 })
+        await call('post', fixture.member.token, `${fixture.base}/join`)
+        const waiting = []
+        for (let i = 0; i < count; i++) {
+            const user = await createAndSignIn()
+            await joinCourse(user.token, fixture.course.joinCode)
+            await call('post', user.token, `${fixture.base}/join`)
+            waiting.push(user)
+        }
+        return { ...fixture, waiting }
+    }
+
+    async function statusOf(fixture, user) {
+        const res = await call('get', fixture.host.token, `${fixture.base}/participants?status=accepted`)
+        return res.body.some((p) => p.user._id === user.user._id) ? 'accepted' : 'not accepted'
+    }
+
+    it('promotes the longest-waiting user when an accepted participant leaves', async () => {
+        const fixture = await fullSessionWithWaitlist(2)
+        const [first, second] = fixture.waiting
+        await call('delete', fixture.member.token, `${fixture.base}/participants/me`)
+        expect(await statusOf(fixture, first)).toBe('accepted')
+        expect(await statusOf(fixture, second)).toBe('not accepted')
+    })
+
+    it('promotes nobody when a waitlisted user leaves', async () => {
+        const fixture = await fullSessionWithWaitlist(2)
+        const [first, second] = fixture.waiting
+        await call('delete', first.token, `${fixture.base}/participants/me`)
+        expect(await statusOf(fixture, second)).toBe('not accepted')
+    })
+
+    it('promotes the longest-waiting user when the host removes an accepted participant', async () => {
+        const fixture = await fullSessionWithWaitlist(2)
+        const [first, second] = fixture.waiting
+        await call('delete', fixture.host.token, `${fixture.base}/participants/${fixture.member.user._id}`)
+        expect(await statusOf(fixture, first)).toBe('accepted')
+        expect(await statusOf(fixture, second)).toBe('not accepted')
+    })
+
+    it('promotes nobody when the host removes a waitlisted user', async () => {
+        const fixture = await fullSessionWithWaitlist(2)
+        const [first, second] = fixture.waiting
+        await call('delete', fixture.host.token, `${fixture.base}/participants/${first.user._id}`)
+        expect(await statusOf(fixture, second)).toBe('not accepted')
+    })
+
+    it('fills every new spot when the host raises capacity', async () => {
+        const fixture = await fullSessionWithWaitlist(3)
+        const [first, second, third] = fixture.waiting
+        await call('patch', fixture.host.token, fixture.base).send({ capacity: 4 })
+        expect(await statusOf(fixture, first)).toBe('accepted')
+        expect(await statusOf(fixture, second)).toBe('accepted')
+        expect(await statusOf(fixture, third)).toBe('not accepted')
+    })
+
+    it('promotes everyone when the host removes the capacity limit', async () => {
+        const fixture = await fullSessionWithWaitlist(2)
+        await call('patch', fixture.host.token, fixture.base).send({ capacity: null })
+        for (const user of fixture.waiting) {
+            expect(await statusOf(fixture, user)).toBe('accepted')
+        }
+    })
+
+    it('keeps everyone accepted when the host lowers capacity below the current count', async () => {
+        const fixture = await fullSessionWithWaitlist(1)
+        await call('patch', fixture.host.token, fixture.base).send({ capacity: 1 })
+        expect(await statusOf(fixture, fixture.member)).toBe('accepted')
+        expect(await statusOf(fixture, fixture.waiting[0])).toBe('not accepted')
+    })
+})
+
 describe('POST /courses/:courseId/sessions/:sessionId/invites', () => {
     it('returns 201 with an invited participant', async () => {
         const { host, member, base } = await sessionWithMember()
