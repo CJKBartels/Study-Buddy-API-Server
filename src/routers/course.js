@@ -645,12 +645,8 @@ router.patch('/courses/:courseId/members/:userId', auth, isCourse, isCourseAdmin
  *     parameters:
  *       - $ref: '#/components/parameters/CourseId'
  *     responses:
- *       200:
- *         description: Left the course (MongoDB delete result)
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/DeleteResult'
+ *       204:
+ *         description: Left the course (no body)
  *       400:
  *         $ref: '#/components/responses/BadRequest'
  *       401:
@@ -663,8 +659,8 @@ router.patch('/courses/:courseId/members/:userId', auth, isCourse, isCourseAdmin
 router.delete('/courses/:courseId/members/me', auth, isCourse, isCourseMember, async (req, res) => {
     const { course, user } = req
 
-    const result = await CourseMembership.deleteOne({ course: course._id, user: user._id })
-    res.status(200).send(result)
+    await CourseMembership.deleteOne({ course: course._id, user: user._id })
+    res.status(204).send()
 })
 
 /**
@@ -679,12 +675,8 @@ router.delete('/courses/:courseId/members/me', auth, isCourse, isCourseMember, a
  *       - $ref: '#/components/parameters/CourseId'
  *       - $ref: '#/components/parameters/UserId'
  *     responses:
- *       200:
- *         description: Member removed (MongoDB delete result; deletedCount is 0 if they weren't a member)
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/DeleteResult'
+ *       204:
+ *         description: Member removed (no body)
  *       400:
  *         $ref: '#/components/responses/BadRequest'
  *       401:
@@ -697,8 +689,13 @@ router.delete('/courses/:courseId/members/me', auth, isCourse, isCourseMember, a
 router.delete('/courses/:courseId/members/:userId', auth, isCourse, isCourseAdmin, async (req, res) => {
     const { course, params } = req
 
-    const result = await CourseMembership.deleteOne({ course: course._id, user: params.userId })
-    res.status(200).send(result)
+    const { deletedCount } = await CourseMembership.deleteOne({ course: course._id, user: params.userId })
+
+    if (deletedCount === 0) {
+        throw new AppError('NOT_FOUND', { message: 'User specified is not a member of course' })
+    }
+
+    res.status(204).send()
 })
 
 export default router
