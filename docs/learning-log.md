@@ -3,6 +3,14 @@
 Design decisions and lessons from working in this codebase.
 Newest entries at the top.
 
+## 2026-10-20 — Assignment lists: absence means default
+
+- **Task:** stop the assignment lists from writing a state doc per assignment on every view, and stop copying due dates into personal state (#15).
+- **Decision:** two plain queries (the assignments, then only this user's states for them) merged by a plain function, `withUserState`. A missing state means the defaults; `personalDueAt` is stored only when the user picks a date, and every reader shows `personalDueAt ?? assignment.dueAt`. `findOrCreate` switched to `$setOnInsert`.
+- **Alternatives considered:** keep the aggregation and fix its `$lookup` to filter by user (one round trip, but a denser pipeline in two places). Rejected because the density is how the bug hid.
+- **Lesson:** probing before designing found two bugs worse than the issue described. The `$lookup` joined states by assignment only, so every member saw classmates' states and private notes; and `findOrCreate`'s plain update rewrote `personalDueAt` on every call. A third probe found `GET /assignments` returning admin-only join codes. Store overrides, not copies: a copied default goes stale the moment the source changes, while a computed one can't.
+- **Revisit:** no data migration for old copied due dates (no real data). Old copies still read as personal dates until cleared.
+
 ## 2026-10-20 — Session follow-ups: consistent responses, leave, waitlist promotion
 
 - **Task:** finish the follow-ups from #3 (#18): plain-string and raw-result responses, RSVP's decision in the URL, no way to leave, no waitlist promotion.
