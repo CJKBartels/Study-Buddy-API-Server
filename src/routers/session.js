@@ -27,6 +27,26 @@ const assertCanMove = (participant, status) => {
 // same moment can overbook by one. Accepted on purpose: an atomic counter on
 // Session would have to be kept in sync on every path that changes who is
 // accepted, and one missed path would make sessions look full when they aren't.
+// Fill open spots from the waitlist, longest-waiting first. Call it from every
+// path that can open a spot (leave, remove, raising capacity). This is the
+// server-side waitlisted -> accepted move the status table allows and that
+// RSVP and join refuse. Each promotion is one atomic findOneAndUpdate, so two
+// promotions running at once never pick the same person. Missing a call only
+// delays promotion until the next trigger; it can't corrupt anything.
+const promoteFromWaitlist = async (session) => {
+    const accepted = await SessionParticipant.countDocuments({ session: session._id, status: 'accepted' })
+    const openSpots = session.capacity == null ? Infinity : session.capacity - accepted
+
+    for (let promoted = 0; promoted < openSpots; promoted++) {
+        const next = await SessionParticipant.findOneAndUpdate(
+            { session: session._id, status: 'waitlisted' },
+            { status: 'accepted' },
+            { sort: { respondedAt: 1, _id: 1 } }
+        )
+        if (!next) break
+    }
+}
+
 const statusIfAccepting = async (session) => {
     if (session.capacity == null) {
         return 'accepted'
@@ -215,6 +235,7 @@ router.get('/courses/:courseId/sessions/:sessionId', auth, isCourse, isCourseMem
  * /courses/{courseId}/sessions/{sessionId}:
  *   patch:
  *     summary: Edit a session (host only)
+ *     description: Raising or removing capacity promotes people from the waitlist, longest-waiting first. Lowering it never removes anyone already accepted.
  *     tags: [Sessions]
  *     parameters:
  *       - $ref: '#/components/parameters/CourseId'
@@ -261,6 +282,13 @@ router.patch('/courses/:courseId/sessions/:sessionId',
 
         props.forEach((prop) => session[prop] = mods[prop])
         await session.save()
+
+        // A higher (or removed) capacity can open spots. A lower one never
+        // demotes anyone already accepted; promotion just waits until the
+        // accepted count drops below the new capacity.
+        if (props.includes('capacity')) {
+            await promoteFromWaitlist(session)
+        }
 
         res.status(200).send(session)
     }
@@ -618,13 +646,72 @@ router.patch('/courses/:courseId/sessions/:sessionId/participants/me',
 )
 
 /**
+ * Leave Session
+ *
+ * @openapi
+ * /courses/{courseId}/sessions/{sessionId}/participants/me:
+ *   delete:
+ *     summary: Leave a session or its waitlist
+ *     description: Sets your status to left. If you were accepted, the longest-waiting person on the waitlist takes your spot. The host can't leave; cancel the session instead.
+ *     tags: [Sessions]
+ *     parameters:
+ *       - $ref: '#/components/parameters/CourseId'
+ *       - $ref: '#/components/parameters/SessionId'
+ *     responses:
+ *       200:
+ *         description: Your participant record, now left
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/SessionParticipant'
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       403:
+ *         $ref: '#/components/responses/Forbidden'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ *       409:
+ *         $ref: '#/components/responses/Conflict'
+ */
+// Declared before /participants/:userId, or Express would treat "me" as a user id
+router.delete('/courses/:courseId/sessions/:sessionId/participants/me',
+    auth, isCourse, isCourseMember, isSession,
+    async (req, res) => {
+        const { session, user } = req
+
+        if (session.host.equals(user._id)) {
+            throw new AppError('BAD_REQUEST', { message: 'Host cannot leave; cancel the session instead' })
+        }
+
+        const participant = await SessionParticipant.findOne({ session: session._id, user: user._id })
+
+        if (!participant) {
+            throw new AppError('PARTICIPANT_NOT_FOUND')
+        }
+        assertCanMove(participant, 'left')
+
+        const freesASpot = participant.status === 'accepted'
+        participant.status = 'left'
+        await participant.save()
+
+        if (freesASpot) {
+            await promoteFromWaitlist(session)
+        }
+
+        res.status(200).send(participant)
+    }
+)
+
+/**
  * Remove Participant
  *
  * @openapi
  * /courses/{courseId}/sessions/{sessionId}/participants/{userId}:
  *   delete:
  *     summary: Remove a participant (host only)
- *     description: The host cannot remove themselves.
+ *     description: The host cannot remove themselves. Removing an accepted participant promotes the longest-waiting person from the waitlist.
  *     tags: [Sessions]
  *     parameters:
  *       - $ref: '#/components/parameters/CourseId'
@@ -664,8 +751,13 @@ router.delete('/courses/:courseId/sessions/:sessionId/participants/:userId',
         }
         assertCanMove(participant, 'removed')
 
+        const freesASpot = participant.status === 'accepted'
         participant.status = 'removed'
         await participant.save()
+
+        if (freesASpot) {
+            await promoteFromWaitlist(session)
+        }
 
         res.status(200).send(participant)
     }
