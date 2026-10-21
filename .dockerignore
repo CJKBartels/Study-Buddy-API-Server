@@ -1,0 +1,9 @@
+# Files Docker never sends to the build. node_modules is rebuilt inside the
+# image, and .env holds secrets that must not end up in a layer.
+node_modules
+.env
+.git
+tests
+docs
+.claude
+.vscode

@@ -1,0 +1,34 @@
+# Local stack: the API image plus its own MongoDB. Start with
+# `docker compose up --build`. Production (App Platform) uses only the
+# Dockerfile and connects to Atlas instead.
+services:
+  api:
+    build: .
+    # JSON_WEB_TOKEN_SECRET comes from .env (see .env.example)
+    env_file: .env
+    # These win over .env, so the API always talks to the db container below
+    environment:
+      PORT: 3000
+      MONGODB_URL: mongodb://mongo:27017/study-buddy
+    ports:
+      - '3000:3000'
+    # server.js exits if it can't connect, so wait until Mongo answers
+    # instead of only until its container has started
+    depends_on:
+      mongo:
+        condition: service_healthy
+
+  mongo:
+    image: mongo:7
+    # Data lives in a named volume, so it survives `docker compose down`.
+    # `docker compose down -v` deletes it.
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ['CMD', 'mongosh', '--quiet', '--eval', 'db.runCommand({ ping: 1 })']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  mongo-data:

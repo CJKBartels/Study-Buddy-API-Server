@@ -20,3 +20,5 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm test
+      # Catches a broken Dockerfile before App Platform tries to build it
+      - run: docker build -t study-buddy-api .
