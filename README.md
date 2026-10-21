@@ -172,6 +172,18 @@ npm run test:watch     # re-run on save
 npm run lint
 ```
 
+## Running with Docker
+
+This needs only Docker. Compose starts the API and its own MongoDB, so you don't need Node, a local `mongod`, or Atlas.
+
+```sh
+cp .env.example .env        # set JSON_WEB_TOKEN_SECRET; Compose sets PORT and MONGODB_URL itself
+docker compose up --build   # API on http://localhost:3000, docs at /api-docs
+docker compose down         # stop; add -v to also delete the database
+```
+
+The production image comes from the same [Dockerfile](Dockerfile) and contains only `src`, `swagger.js`, and the runtime dependencies. CI builds it on every PR. The Node version is set in 3 places (the Dockerfile, `.github/workflows/ci.yml`, and `engines` in `package.json`), so change them together.
+
 ## API at a glance
 
 | Area | Routes |
