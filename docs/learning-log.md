@@ -3,6 +3,14 @@
 Design decisions and lessons from working in this codebase.
 Newest entries at the top.
 
+## 2026-10-21 — Health check: readiness, not liveness
+
+- **Task:** add `GET /health` (#6) for App Platform's health check and an uptime monitor for the demo.
+- **Decision:** one endpoint, no token. It returns 200 when Mongoose's `connection.readyState` is "connected", and otherwise throws `DATABASE_UNAVAILABLE` (503) with the state in `details`, so it uses the same error envelope as every other route. It goes in App Platform's readiness check only.
+- **Alternatives considered:** ping the database on every request (proves a round trip works, but costs a query per check and can hang on a slow database); two endpoints, one for "process is up" and one for "database is up" (more precise, but nothing here needs the split yet).
+- **Lesson:** a readiness check answers "should this container get traffic?" and a liveness check answers "should it be restarted?". A database check belongs in readiness only. As a liveness check, an Atlas outage would make the platform restart a healthy API over and over, which can't fix a database on another server.
+- **Revisit:** `readyState` can say "connected" a moment after the database stops answering, until the driver notices. The error handler logs every 5xx, so a database outage logs one line per health check.
+
 ## 2026-10-21 — Docker: a build we control, and fail-fast startup
 
 - **Task:** containerize the API (#8) and make startup fail loudly when MongoDB is unreachable. The first App Platform build had just failed: its buildpack picked Node 22 / npm 10, which rejected the npm 11 lockfile.
