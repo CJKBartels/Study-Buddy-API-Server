@@ -30,7 +30,6 @@ npm run test:watch          # vitest in watch mode
 npm test -- tests/routers/course.test.js      # one file
 npm test -- -t "returns 201"                  # tests whose name matches
 npm run lint                # eslint (style: no semicolons, single quotes, 1tbs)
-npm run api                 # serve the standalone swagger editor
 ```
 
 CI (`.github/workflows/ci.yml`) runs `npm ci`, `npm run lint`, and `npm test` on
