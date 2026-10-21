@@ -3,6 +3,14 @@
 Design decisions and lessons from working in this codebase.
 Newest entries at the top.
 
+## 2026-10-21 — Docker: a build we control, and fail-fast startup
+
+- **Task:** containerize the API (#8) and make startup fail loudly when MongoDB is unreachable. The first App Platform build had just failed: its buildpack picked Node 22 / npm 10, which rejected the npm 11 lockfile.
+- **Decision:** a `node:24-alpine` Dockerfile (production dependencies only, non-root `node` user) that App Platform builds from and CI builds on every PR. `docker-compose.yml` adds a local MongoDB with a named volume and a healthcheck the API waits on. `server.js` awaits `connectDatabase()` and exits with code 1 on failure. `engines` pins Node 24 too, and the unused Swagger editor packages are gone.
+- **Alternatives considered:** keep App Platform on its buildpack (no Dockerfile needed, but DigitalOcean picks the build, and CI would test a different build than production runs); keep a Dockerfile only for local use (two build paths that can drift apart). For startup, connect in the background and keep listening (the API stays up but answers every request with a 500, and the platform sees a healthy process).
+- **Lesson:** a container's own disk is temporary. Each rebuild or deploy starts from the image again, so anything that must survive lives in a volume or an outside service. Compose services reach each other by service name on a private network, and nothing outside that network gets in except through a published port. Publishing a passwordless database on `127.0.0.1` keeps it to this machine.
+- **Revisit:** Node 24 is set in 3 places (Dockerfile, `ci.yml`, `engines`) that must change together. The App Platform component still has to be switched to the Dockerfile at deploy time.
+
 ## 2026-10-20 — Assignment lists: absence means default
 
 - **Task:** stop the assignment lists from writing a state doc per assignment on every view, and stop copying due dates into personal state (#15).
