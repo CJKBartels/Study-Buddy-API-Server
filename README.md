@@ -188,6 +188,7 @@ The production image comes from the same [Dockerfile](Dockerfile) and contains o
 
 | Area | Routes |
 | --- | --- |
+| Health | `GET /health` (no token; 503 when the database is down) |
 | Accounts | `POST /users`, `POST /user/sign-in`, `POST /user/sign-out`, `/users/me` |
 | Courses | `/courses`, `POST /courses/join/:joinCode`, `/courses/:courseId/members` |
 | Assignments | `/courses/:courseId/assignments`, your progress at `/courses/:courseId/my/assignments`, everything across courses at `GET /assignments` |

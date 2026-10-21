@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import swaggerSpec from '../swagger.js'
 import { ERROR_CODES } from '../src/assets/errorCodes.js'
+import healthRouter from '../src/routers/health.js'
 import userRouter from '../src/routers/user.js'
 import courseRouter from '../src/routers/course.js'
 import assignmentRouter from '../src/routers/assignments.js'
@@ -12,7 +13,7 @@ import availabilityRouter from '../src/routers/availability.js'
 // was silently dropped by swagger-jsdoc over a YAML mistake), or when a new
 // error code isn't listed in the shared error responses.
 
-const routers = [userRouter, courseRouter, assignmentRouter, sessionRouter, availabilityRouter]
+const routers = [healthRouter, userRouter, courseRouter, assignmentRouter, sessionRouter, availabilityRouter]
 
 // Reads each router's registered routes. `stack` is Express internals, not a
 // public API, so an Express upgrade could break this helper without the docs
