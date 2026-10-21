@@ -11,6 +11,7 @@ export const ERROR_CODES = Object.freeze({
     NOT_FOUND: { status: 404, message: 'Resource not found' },
     CONFLICT: { status: 409, message: 'Conflict' },
     INTERNAL_ERROR: { status: 500, message: 'Internal server error' },
+    DATABASE_UNAVAILABLE: { status: 503, message: 'Database is not connected' },
 
     // Domain-specific (needed by user.js + middleware now; grow as routers migrate)
     DUPLICATE_ACCOUNT: { status: 409, message: 'An account with that email already exists' },

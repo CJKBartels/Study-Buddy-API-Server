@@ -1,6 +1,7 @@
 import express from 'express'
 import cors from 'cors'
 import swaggerUi from 'swagger-ui-express'
+import healthRouter from './routers/health.js'
 import userRouter from './routers/user.js'
 import assignmentRouter from './routers/assignments.js'
 import sessionRouter from './routers/session.js'
@@ -20,6 +21,8 @@ app.use(function (req, res, next) {
     next()
 })
 
+// First, so monitors get a fast answer without going through other routers
+app.use(healthRouter)
 app.use(userRouter)
 app.use(assignmentRouter)
 app.use(sessionRouter)
