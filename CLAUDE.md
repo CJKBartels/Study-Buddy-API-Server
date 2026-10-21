@@ -32,8 +32,8 @@ npm test -- -t "returns 201"                  # tests whose name matches
 npm run lint                # eslint (style: no semicolons, single quotes, 1tbs)
 ```
 
-CI (`.github/workflows/ci.yml`) runs `npm ci`, `npm run lint`, and `npm test` on
-pushes to `main` and on PRs into `main`. `package-lock.json` is committed. Commit it with
+CI (`.github/workflows/ci.yml`) runs `npm ci`, `npm run lint`, `npm test`, and
+`docker build` on pushes to `main` and on PRs into `main`. `package-lock.json` is committed. Commit it with
 any dependency change, or `npm ci` fails.
 
 `.env` needs `PORT`, `MONGODB_URL`, `JSON_WEB_TOKEN_SECRET`. Tests need none of
@@ -42,8 +42,9 @@ these. They start their own in-memory MongoDB.
 ## Architecture
 
 **`app.js` vs `server.js`.** `src/app.js` builds and exports the Express app
-without connecting to the DB or listening. `src/server.js` imports
-`db/mongoose.js` (the DB connection side effect) and calls `listen`. Tests import
+without connecting to the DB or listening. `src/server.js` awaits
+`connectDatabase()` from `db/mongoose.js`, exits with code 1 if it fails, and
+only then calls `listen`. Tests import
 `app` directly with `supertest`. Keep `app.js` free of side effects.
 
 **Access control is a middleware chain that loads resources onto `req`.** Routes
