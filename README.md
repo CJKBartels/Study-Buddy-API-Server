@@ -184,6 +184,12 @@ docker compose down         # stop; add -v to also delete the database
 
 The production image comes from the same [Dockerfile](Dockerfile) and contains only `src`, `swagger.js`, and the runtime dependencies. CI builds it on every PR. The Node version is set in 3 places (the Dockerfile, `.github/workflows/ci.yml`, and `engines` in `package.json`), so change them together.
 
+## Demo data
+
+`npm run seed` fills the database at `MONGODB_URL` with a demo course: 3 users, assignments with the demo user's progress, and a study session with messages. Sign in as `demo@studybuddy.example` / `studybuddy-demo`.
+
+Re-running resets the demo to the same starting state. It deletes only the demo accounts' data and the demo course, never other users'. With Docker, run `docker compose exec api node src/scripts/seed.js`.
+
 ## API at a glance
 
 | Area | Routes |
