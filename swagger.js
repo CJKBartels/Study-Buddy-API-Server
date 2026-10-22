@@ -274,6 +274,9 @@ const options = {
 
                 SessionPatchRequest: {
                     type: 'object',
+                    description: 'At least one field. Any other field is rejected with INVALID_UPDATES.',
+                    minProperties: 1,
+                    additionalProperties: false,
                     properties: {
                         title: { type: 'string' },
                         goal: { type: 'string' },
@@ -282,7 +285,7 @@ const options = {
                         endsAt: { type: 'string', format: 'date-time' },
                         location: { type: 'string' },
                         locationType: { type: 'string' },
-                        capacity: { type: 'integer' },
+                        capacity: { type: 'integer', nullable: true, description: 'null removes the limit' },
                         joinPolicy: { type: 'string', enum: ['invite_only', 'course_open'] },
                         status: { type: 'string', enum: ['scheduled', 'cancelled'] },
                     }
