@@ -7,6 +7,7 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "env-cmd nodemon src/server.js",
+    "seed": "env-cmd node src/scripts/seed.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint ."

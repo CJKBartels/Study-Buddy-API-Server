@@ -189,10 +189,10 @@ router.get('/user/:userId', auth, async (req, res) => {
  *             properties:
  *               email:
  *                 type: string
- *                 example: demo@studybuddy.com
+ *                 example: demo@studybuddy.example
  *               password:
  *                 type: string
- *                 example: DemoPassword123!
+ *                 example: studybuddy-demo
  *     responses:
  *       200:
  *         description: Successful login

@@ -3,6 +3,14 @@
 Design decisions and lessons from working in this codebase.
 Newest entries at the top.
 
+## 2026-10-22 — Seed script: reset the demo, recognized by fixed ids
+
+- **Task:** fill the live demo with data (#9): a demo user with a public password, a course, assignments with that user's progress, and a study session with messages. `npm run seed` must be safe to re-run.
+- **Decision:** each run deletes the demo data, then creates it again through the models (`create` runs the password-hashing hook; `insertMany` would skip it). The demo accounts have fixed ids and the course a fixed join code, so the reset finds them whatever visitors changed. `seedDemo()` lives in `src/db` and has no try/catch; `src/scripts/seed.js` is the boundary that prints a message, sets the exit code, and always disconnects.
+- **Alternatives considered:** create only what's missing, matched by name (never deletes, but can't repair edits, and a deleted account leaves orphans); seed only an empty database (simplest, but the only repair is wiping real users too). Seeding through HTTP requests (exercises the routes, but needs a running server and is slow).
+- **Lesson:** a reset needs a stable way to recognize its own data. The first draft found demo accounts by email domain; a test that deleted the demo account showed the next run couldn't find that account's availability, and a copy piled up. Names and emails belong to whoever controls the account; fixed ids don't. Also, catch errors only where you can do something with them: the script's caller (terminal or test) decides what failure looks like, so the seeding code lets errors through.
+- **Revisit:** the reset must be updated when a new model points at users or courses, or demo rows of that model pile up. Deleting a real account still leaves orphans (#27).
+
 ## 2026-10-21 — Health check: readiness, not liveness
 
 - **Task:** add `GET /health` (#6) for App Platform's health check and an uptime monitor for the demo.

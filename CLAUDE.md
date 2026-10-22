@@ -30,6 +30,7 @@ npm run test:watch          # vitest in watch mode
 npm test -- tests/routers/course.test.js      # one file
 npm test -- -t "returns 201"                  # tests whose name matches
 npm run lint                # eslint (style: no semicolons, single quotes, 1tbs)
+npm run seed                # reset the demo data in the .env database (src/db/seedDemo.js)
 ```
 
 CI (`.github/workflows/ci.yml`) runs `npm ci`, `npm run lint`, `npm test`, and
