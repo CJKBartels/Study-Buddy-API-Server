@@ -29,15 +29,17 @@ const router = new Router()
  *              $ref: '#/components/schemas/CourseCreateRequest'
  *     responses:
  *       201:
- *         description: User Object
+ *         description: The created course, including its join code. The caller becomes its admin.
  *         content:
  *          application/json:
  *              schema:
- *                  $ref: '#/components/schemas/Course'        
+ *                  $ref: '#/components/schemas/CourseWithJoinCode'
  *       400:
  *         $ref: '#/components/responses/BadRequest'
  *       401:
  *         $ref: '#/components/responses/Unauthorized'
+ *       500:
+ *         description: Failed to generate unique join code
 */
 router.post('/courses', auth, async (req, res) => {
     let { user, body: data } = req
@@ -101,19 +103,14 @@ function generateJoinCode(length = CODE_LENGTH) {
  *     summary: Get Course Details from Id
  *     tags: [Course]
  *     parameters:
- *      - in: path
- *        required: true
- *        name: courseId
- *        schema:
- *          type: string
- *        description: Id of course in question
+ *       - $ref: '#/components/parameters/CourseId'
  *     responses:
  *       200:
- *         description: Course Object
+ *         description: Course Object (without joinCode)
  *         content:
  *          application/json:
  *              schema:
- *                  $ref: '#/components/schemas/Course'        
+ *                  $ref: '#/components/schemas/Course'
  *       400:
  *         $ref: '#/components/responses/BadRequest'
  *       401:
@@ -174,13 +171,13 @@ router.get('/courses/:courseId/joinCode', auth, isCourse, isCourseAdmin, async (
  *     tags: [Course]
  *     responses:
  *       200:
- *         description: Course Objects
+ *         description: Course Objects (without joinCode)
  *         content:
  *          application/json:
  *              schema:
  *                  type: array
  *                  items:
- *                      $ref: '#/components/schemas/Course'        
+ *                      $ref: '#/components/schemas/Course'
  *       401:
  *         $ref: '#/components/responses/Unauthorized'
 */
@@ -199,12 +196,7 @@ router.get('/courses', auth, async (req, res) => {  //Add more functionality lat
  *     summary: Delete Course
  *     tags: [Course]
  *     parameters:
- *      - in: path
- *        required: true
- *        name: courseId
- *        schema:
- *          type: string
- *        description: Id of course in question
+ *       - $ref: '#/components/parameters/CourseId'
  *     responses:
  *       204:
  *         description: Course and everything in it deleted (no body)
@@ -249,18 +241,15 @@ router.delete('/courses/:courseId', auth, isCourse, isCourseAdmin, async (req, r
  *     summary: Update Course
  *     tags: [Course]
  *     parameters:
- *      - in: path
- *        required: true
- *        name: courseId
- *        schema:
- *          type: string
- *        description: Id of course in question
+ *       - $ref: '#/components/parameters/CourseId'
  *     requestBody:
  *      required: true
  *      content:
  *          application/json:
  *            schema:
  *              type: object
+ *              description: Any other field is rejected with INVALID_UPDATES. If courseName or courseCode changes without a title, the title is rebuilt as "courseCode - courseName".
+ *              additionalProperties: false
  *              properties:
  *                  title:
  *                      type: string
@@ -271,14 +260,14 @@ router.delete('/courses/:courseId', auth, isCourse, isCourseAdmin, async (req, r
  *                  school:
  *                      type: string
  *                  isPublic:
- *                      type: boolean          
+ *                      type: boolean
  *     responses:
  *       200:
- *         description: Success
+ *         description: The updated course, including its join code
  *         content:
  *          application/json:
  *              schema:
- *                  $ref: '#/components/schemas/Course'
+ *                  $ref: '#/components/schemas/CourseWithJoinCode'
  *       400:
  *         $ref: '#/components/responses/BadRequest'
  *       401:
@@ -386,12 +375,7 @@ router.post('/courses/join/:joinCode', auth, async (req, res) => {
  *     summary: Rotate join code
  *     tags: [Course]
  *     parameters:
- *      - in: path
- *        required: true
- *        name: courseId
- *        schema:
- *          type: string
- *        description: id of course
+ *       - $ref: '#/components/parameters/CourseId'
  *     responses:
  *       201:
  *         description: The new join code
@@ -400,8 +384,6 @@ router.post('/courses/join/:joinCode', auth, async (req, res) => {
  *              schema:
  *                  type: string
  *                  example: K7Q2M9XA
- *       500:
- *          description: Failed to generate unique join code
  *       400:
  *         $ref: '#/components/responses/BadRequest'
  *       401:
@@ -410,6 +392,8 @@ router.post('/courses/join/:joinCode', auth, async (req, res) => {
  *         $ref: '#/components/responses/Forbidden'
  *       404:
  *         $ref: '#/components/responses/NotFound'
+ *       500:
+ *         description: Failed to generate unique join code
 */
 router.patch('/courses/:courseId/joinCode', auth, isCourse, isCourseAdmin, async (req, res) => {
     const { course } = req
@@ -439,14 +423,10 @@ router.patch('/courses/:courseId/joinCode', auth, isCourse, isCourseAdmin, async
  *     summary: Get course members
  *     tags: [Course]
  *     parameters:
- *      - in: path
- *        required: true
- *        name: courseId
- *        schema:
- *          type: string
- *        description: id of course
+ *       - $ref: '#/components/parameters/CourseId'
  *     responses:
  *       200:
+ *         description: Active (not banned) memberships, each with the user's username
  *         content:
  *          application/json:
  *              schema:
@@ -454,21 +434,23 @@ router.patch('/courses/:courseId/joinCode', auth, isCourse, isCourseAdmin, async
  *                  items:
  *                      type: object
  *                      properties:
- *                          id: 
+ *                          _id:
  *                              type: string
  *                          course:
  *                              type: string
  *                          user:
  *                              type: object
  *                              properties:
- *                                  id:
+ *                                  _id:
  *                                      type: string
  *                                  username:
  *                                      type: string
  *                          role:
  *                              type: string
+ *                              enum: [member, moderator, admin]
  *                          joinedAt:
  *                              type: string
+ *                              format: date-time
  *       400:
  *         $ref: '#/components/responses/BadRequest'
  *       401:
@@ -498,42 +480,37 @@ router.get('/courses/:courseId/members', auth, isCourse, isCourseMember, async (
 *     summary: Get member details
 *     tags: [Course]
 *     parameters:
-*      - in: path
-*        required: true
-*        name: courseId
-*        schema:
-*          type: string
-*        description: id of course
-*      - in: path
-*        required: true
-*        name: userId
-*        schema:
-*          type: string
-*        description: id of member
+*       - $ref: '#/components/parameters/CourseId'
+*       - $ref: '#/components/parameters/UserId'
 *     responses:
 *       200:
+*         description: The membership, with the user's username. Banned members are returned too.
 *         content:
 *          application/json:
 *              schema:
 *               type: object
 *               properties:
-*                   id: 
+*                   _id:
 *                       type: string
 *                   user:
 *                       type: object
 *                       properties:
-*                           id:
+*                           _id:
 *                               type: string
 *                           username:
 *                               type: string
 *                   role:
 *                       type: string
+*                       enum: [member, moderator, admin]
 *                   status:
 *                       type: string
+*                       enum: [active, banned]
 *                   joinedAt:
 *                       type: string
+*                       format: date-time
 *                   updatedAt:
 *                       type: string
+*                       format: date-time
 *       400:
 *         $ref: '#/components/responses/BadRequest'
 *       401:
@@ -571,6 +548,8 @@ router.get('/courses/:courseId/members/:userId', auth, isCourse, isCourseMember,
  *         application/json:
  *           schema:
  *             type: object
+ *             description: Any other field is rejected with INVALID_UPDATES.
+ *             additionalProperties: false
  *             properties:
  *               role:
  *                 type: string
@@ -594,8 +573,16 @@ router.get('/courses/:courseId/members/:userId', auth, isCourse, isCourseMember,
  *                   type: string
  *                 role:
  *                   type: string
+ *                   enum: [member, moderator, admin]
  *                 status:
  *                   type: string
+ *                   enum: [active, banned]
+ *                 joinedAt:
+ *                   type: string
+ *                   format: date-time
+ *                 updatedAt:
+ *                   type: string
+ *                   format: date-time
  *       400:
  *         $ref: '#/components/responses/BadRequest'
  *       401:

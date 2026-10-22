@@ -56,18 +56,35 @@ const options = {
                     },
                 },
 
+                // A course as any signed-in user sees it. joinCode is left out;
+                // only admins see it (CourseWithJoinCode).
                 Course: {
                     type: 'object',
 
                     properties: {
+                        _id: { type: 'string' },
                         title: { type: 'string' },
                         courseName: { type: 'string' },
                         courseCode: { type: 'string' },
                         school: { type: 'string' },
                         createdBy: { type: 'string' },
-                        joinCode: { type: 'string' },
                         isPublic: { type: 'boolean' },
+                        createdAt: { type: 'string', format: 'date-time' },
+                        updatedAt: { type: 'string', format: 'date-time' },
                     }
+                },
+
+                // Returned to the admin who creates or updates a course
+                CourseWithJoinCode: {
+                    allOf: [
+                        { $ref: '#/components/schemas/Course' },
+                        {
+                            type: 'object',
+                            properties: {
+                                joinCode: { type: 'string', example: 'K7Q2M9XA' },
+                            }
+                        }
+                    ]
                 },
 
                 CourseCreateRequest: {
@@ -79,11 +96,11 @@ const options = {
                     ],
 
                     properties: {
-                        title: { type: 'string' },
+                        title: { type: 'string', description: 'Defaults to "courseCode - courseName"' },
                         courseName: { type: 'string' },
                         courseCode: { type: 'string' },
                         school: { type: 'string' },
-                        isPublic: { type: 'boolean' },
+                        isPublic: { type: 'boolean', default: true },
                     }
                 },
 
