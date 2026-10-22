@@ -375,6 +375,12 @@ router.delete('/courses/:courseId/sessions/:sessionId',
  *                   respondedAt:
  *                     type: string
  *                     format: date-time
+ *                   createdAt:
+ *                     type: string
+ *                     format: date-time
+ *                   updatedAt:
+ *                     type: string
+ *                     format: date-time
  *       400:
  *         $ref: '#/components/responses/BadRequest'
  *       401:
@@ -500,7 +506,7 @@ router.post('/courses/:courseId/sessions/:sessionId/invites',
  * /courses/{courseId}/sessions/{sessionId}/join:
  *   post:
  *     summary: Join an open session
- *     description: Accepts a pending invite too. When the session is full, the participant is waitlisted instead of accepted.
+ *     description: Accepts a pending invite too. When the session is full, the participant is waitlisted instead of accepted. Users who declined, left, or were removed need a new invite first.
  *     tags: [Sessions]
  *     parameters:
  *       - $ref: '#/components/parameters/CourseId'
