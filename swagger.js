@@ -352,24 +352,32 @@ const options = {
                     type: 'object',
                     required: ['timezone'],
                     properties: {
-                        timezone: { type: 'string', example: 'America/New_York' },
-                        blocks: { type: 'array', items: { $ref: '#/components/schemas/AvailabilityBlock' } },
+                        timezone: { type: 'string', description: 'IANA time zone name', example: 'America/New_York' },
+                        blocks: { type: 'array', description: 'Omit or send [] to clear all blocks', items: { $ref: '#/components/schemas/AvailabilityBlock' } },
                     }
                 },
 
+                // Saved availability. Each stored block gets its own _id, so
+                // blocks are listed here rather than reusing the request schema.
                 Availability: {
-                    allOf: [
-                        { $ref: '#/components/schemas/AvailabilityPutRequest' },
-                        {
-                            type: 'object',
-                            properties: {
-                                _id: { type: 'string' },
-                                user: { type: 'string' },
-                                createdAt: { type: 'string', format: 'date-time' },
-                                updatedAt: { type: 'string', format: 'date-time' },
+                    type: 'object',
+                    properties: {
+                        _id: { type: 'string' },
+                        user: { type: 'string' },
+                        timezone: { type: 'string', example: 'America/New_York' },
+                        blocks: {
+                            type: 'array',
+                            description: 'Merged and sorted by day, then startMin',
+                            items: {
+                                allOf: [
+                                    { $ref: '#/components/schemas/AvailabilityBlock' },
+                                    { type: 'object', properties: { _id: { type: 'string' } } }
+                                ]
                             }
-                        }
-                    ]
+                        },
+                        createdAt: { type: 'string', format: 'date-time' },
+                        updatedAt: { type: 'string', format: 'date-time' },
+                    }
                 }
             },
 
