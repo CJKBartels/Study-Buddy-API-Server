@@ -3,6 +3,14 @@
 Design decisions and lessons from working in this codebase.
 Newest entries at the top.
 
+## 2026-10-22 — A docs agent, checked by hand and then by a test
+
+- **Task:** fix the API docs after `GET /assignments` turned out to document 2 path params it doesn't have.
+- **Decision:** a project subagent, `.claude/agents/openapi-auditor.md`, that audits one router at a time against a 7-point checklist (path, path and query params, body, response shape, errors from the whole middleware chain, security) and edits only `@openapi` blocks and `swagger.js` components. It reports suspected code bugs instead of documenting them. Each run was checked by hand (`git diff`, the full suite, live responses from the Docker stack) and committed on its own. The one mistake that's mechanical to spot, path params that don't match the path, is now a test.
+- **Alternatives considered:** a skill loaded into the main conversation (interactive, but 46 routes would fill its context); more tests only (deterministic and free in CI, but they can't judge whether a response shape matches what a helper builds).
+- **Lesson:** the coverage test checked that each route had a doc block, and the blocks were still wrong in every router: missing query params, `id` vs `_id`, wrapped vs bare responses, a password the model never sends. "Documented" and "correct" are different checks. The audit also surfaced code bugs the tests never hit, mostly 500s from Express 5 leaving `req.body` undefined, filed as #29 and #30. Verify an agent's claims before passing them on: one claim I "disproved" was right, and my check was wrong (PowerShell counts an empty response as 1 item).
+- **Revisit:** the agent's limits are partly instructions, not enforcement (it can edit any file), so its diffs still need review. The docs stay correct only if the agent is rerun when routes change.
+
 ## 2026-10-22 — Seed script: reset the demo, recognized by fixed ids
 
 - **Task:** fill the live demo with data (#9): a demo user with a public password, a course, assignments with that user's progress, and a study session with messages. `npm run seed` must be safe to re-run.
