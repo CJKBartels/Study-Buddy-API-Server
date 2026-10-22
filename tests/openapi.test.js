@@ -53,6 +53,25 @@ describe('OpenAPI spec', () => {
         expect(unlisted).toEqual([])
     })
 
+    it('declares exactly the path params in each path', () => {
+        // Shared params are $refs into components.parameters
+        const resolve = (param) => param.$ref
+            ? swaggerSpec.components.parameters[param.$ref.split('/').pop()]
+            : param
+        const mismatched = Object.entries(swaggerSpec.paths).flatMap(([path, operations]) =>
+            Object.entries(operations)
+                .filter(([, operation]) => {
+                    const inPath = [...path.matchAll(/{(\w+)}/g)].map(([, name]) => name).sort()
+                    const declared = (operation.parameters ?? []).map(resolve)
+                        .filter((param) => param.in === 'path')
+                        .map((param) => param.name)
+                        .sort()
+                    return inPath.join() !== declared.join()
+                })
+                .map(([method]) => `${method.toUpperCase()} ${path}`))
+        expect(mismatched).toEqual([])
+    })
+
     it('gives every operation at least one error response', () => {
         const withoutErrors = Object.entries(swaggerSpec.paths).flatMap(([path, operations]) =>
             Object.entries(operations)
