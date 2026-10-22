@@ -100,9 +100,10 @@ const options = {
                         {
                             type: 'object',
                             properties: {
+                                _id: { type: 'string' },
                                 createdBy: { type: 'string' },
                                 course: { type: 'string' },
-                                source: { type: 'string' },
+                                source: { type: 'string', enum: ['community', 'moderator'] },
                                 createdAt: { type: 'string' },
                                 updatedAt: { type: 'string' },
                             }
@@ -110,8 +111,40 @@ const options = {
                     ]
                 },
 
+                // One assignment with createdBy and course populated (GET by id)
+                AssignmentDetail: {
+                    type: 'object',
+                    properties: {
+                        _id: { type: 'string' },
+                        title: { type: 'string' },
+                        description: { type: 'string' },
+                        status: { type: 'string', enum: ['active', 'archived'] },
+                        dueAt: { type: 'string', format: 'date-time' },
+                        source: { type: 'string', enum: ['community', 'moderator'] },
+                        createdBy: {
+                            type: 'object',
+                            properties: {
+                                _id: { type: 'string' },
+                                username: { type: 'string' },
+                            }
+                        },
+                        course: {
+                            type: 'object',
+                            properties: {
+                                _id: { type: 'string' },
+                                title: { type: 'string' },
+                            }
+                        },
+                        createdAt: { type: 'string', format: 'date-time' },
+                        updatedAt: { type: 'string', format: 'date-time' },
+                    }
+                },
+
                 AssignmentPatchRequest: {
                     type: 'object',
+                    description: 'At least one field. Any other field is rejected with INVALID_UPDATES.',
+                    minProperties: 1,
+                    additionalProperties: false,
 
                     properties: {
                         title: { type: 'string' },
@@ -130,34 +163,48 @@ const options = {
                     ],
 
                     properties: {
+                        _id: { type: 'string' },
                         assignment: { type: 'string' },
                         course: { type: 'string' },
                         user: { type: 'string' },
-                        state: { type: 'string' },
+                        state: { type: 'string', enum: ['not_started', 'in_progress', 'complete'] },
                         personalNotes: { type: 'string' },
                         personalDueAt: { type: 'string' },
                         completedAt: { type: 'string' },
+                        createdAt: { type: 'string', format: 'date-time' },
+                        updatedAt: { type: 'string', format: 'date-time' },
                     }
 
                 },
 
-                AssignmentUserStateExpanded: {
+                // The userState attached to each assignment in the "with user
+                // states" lists. Defaults are filled in when the user has none.
+                AssignmentUserStateSummary: {
                     type: 'object',
-
                     properties: {
-                        assignment: {
-                            $ref: '#/components/schemas/Assignment'
-                        },
-                        course: {
-                            $ref: '#/components/schemas/Course'
-                        },
-                        user: { type: 'string' },
-                        state: { type: 'string' },
+                        _id: { type: 'string', nullable: true, description: 'null when the user has no saved state yet' },
+                        state: { type: 'string', enum: ['not_started', 'in_progress', 'complete'], default: 'not_started' },
                         personalNotes: { type: 'string' },
-                        personalDueAt: { type: 'string' },
-                        completedAt: { type: 'string' },
+                        personalDueAt: { type: 'string', format: 'date-time', description: 'The user\'s own due date, or the assignment\'s dueAt if they never set one' },
+                        completedAt: { type: 'string', format: 'date-time' },
                     }
+                },
 
+                // An assignment with this user's state attached. `course` is left
+                // out because its shape differs by route; each route adds it.
+                AssignmentWithUserState: {
+                    type: 'object',
+                    properties: {
+                        _id: { type: 'string' },
+                        title: { type: 'string' },
+                        description: { type: 'string' },
+                        status: { type: 'string', enum: ['active', 'archived'] },
+                        dueAt: { type: 'string', format: 'date-time' },
+                        source: { type: 'string', enum: ['community', 'moderator'] },
+                        createdBy: { type: 'string' },
+                        createdAt: { type: 'string', format: 'date-time' },
+                        userState: { $ref: '#/components/schemas/AssignmentUserStateSummary' },
+                    }
                 },
 
                 // Every error response uses this shape (built by errorHandler)
@@ -299,6 +346,7 @@ const options = {
             // Reusable path parameters, so routes don't repeat them
             parameters: {
                 CourseId: { in: 'path', name: 'courseId', required: true, schema: { type: 'string' }, description: 'Id of course' },
+                AssignmentId: { in: 'path', name: 'assignmentId', required: true, schema: { type: 'string' }, description: 'Id of assignment' },
                 SessionId: { in: 'path', name: 'sessionId', required: true, schema: { type: 'string' }, description: 'Id of session' },
                 UserId: { in: 'path', name: 'userId', required: true, schema: { type: 'string' }, description: 'Id of user' },
                 MessageId: { in: 'path', name: 'messageId', required: true, schema: { type: 'string' }, description: 'Id of message' },

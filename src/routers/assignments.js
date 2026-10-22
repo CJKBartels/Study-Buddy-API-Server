@@ -16,14 +16,10 @@ const router = new Router()
  * /courses/{courseId}/assignments:
  *   post:
  *     summary: Create Assignment
+ *     description: The server sets createdBy, course, and source (community for members, moderator for moderators and admins), overriding any values sent.
  *     tags: [Assignments]
- *     parameters:    
- *      - in: path
- *        required: true
- *        name: courseId
- *        schema:
- *          type: string
- *        description: Id of course
+ *     parameters:
+ *      - $ref: '#/components/parameters/CourseId'
  *     requestBody:
  *       required: true
  *       content:
@@ -70,12 +66,7 @@ router.post('/courses/:courseId/assignments',
  *     summary: Get Assignments
  *     tags: [Assignments]
  *     parameters:
- *      - in: path
- *        name: courseId
- *        required: true
- *        schema:
- *          type: string
- *        description: Id of course
+ *      - $ref: '#/components/parameters/CourseId'
  *      - in: query
  *        name: status
  *        schema:
@@ -83,7 +74,8 @@ router.post('/courses/:courseId/assignments',
  *          enum:
  *           - active
  *           - archived
- *           - all 
+ *           - all
+ *          default: active
  *        description: Filter between active and archived assignments
  *      - in: query
  *        name: source
@@ -95,7 +87,7 @@ router.post('/courses/:courseId/assignments',
  *        description: Filter between community-made and moderator-made assignments
  *     responses:
  *       200:
- *         description: Array of Assignment Objects
+ *         description: Array of Assignment Objects, without the course field
  *         content:
  *          application/json:
  *              schema:
@@ -146,25 +138,15 @@ router.get('/courses/:courseId/assignments',
  *     summary: Get Assignment from Id
  *     tags: [Assignments]
  *     parameters:
- *      - in: path
- *        required: true
- *        name: courseId
- *        schema:
- *          type: string
- *        description: Id of course
- *      - in: path
- *        required: true
- *        name: assignmentId
- *        schema:
- *          type: string
- *        description: Id of assignment
+ *      - $ref: '#/components/parameters/CourseId'
+ *      - $ref: '#/components/parameters/AssignmentId'
  *     responses:
  *       200:
- *         description: Assignment Object
+ *         description: Assignment Object with createdBy and course populated
  *         content:
  *          application/json:
  *              schema:
- *                  $ref: '#/components/schemas/Assignment'
+ *                  $ref: '#/components/schemas/AssignmentDetail'
  *       400:
  *         $ref: '#/components/responses/BadRequest'
  *       401:
@@ -192,20 +174,11 @@ router.get('/courses/:courseId/assignments/:assignmentId',
  * /courses/{courseId}/assignments/{assignmentId}:
  *   patch:
  *     summary:  Update Assignment
+ *     description: Members may edit only assignments they created. An edit by a moderator or admin sets source to moderator.
  *     tags: [Assignments]
  *     parameters:
- *      - in: path
- *        required: true
- *        name: courseId
- *        schema:
- *          type: string
- *        description: Id of course
- *      - in: path
- *        required: true
- *        name: assignmentId
- *        schema:
- *          type: string
- *        description: Id of assignment
+ *      - $ref: '#/components/parameters/CourseId'
+ *      - $ref: '#/components/parameters/AssignmentId'
  *     requestBody:
  *      required: true
  *      content:
@@ -270,20 +243,11 @@ router.patch('/courses/:courseId/assignments/:assignmentId',
  * /courses/{courseId}/assignments/{assignmentId}/stamp:
  *   post:
  *     summary:  Verify assignment
+ *     description: Moderators and admins only. Sets source to moderator.
  *     tags: [Assignments]
  *     parameters:
- *      - in: path
- *        required: true
- *        name: courseId
- *        schema:
- *          type: string
- *        description: Id of course
- *      - in: path
- *        required: true
- *        name: assignmentId
- *        schema:
- *          type: string
- *        description: Id of assignment
+ *      - $ref: '#/components/parameters/CourseId'
+ *      - $ref: '#/components/parameters/AssignmentId'
  *     responses:
  *       200:
  *         description: Assignment Object
@@ -317,20 +281,11 @@ router.post('/courses/:courseId/assignments/:assignmentId/stamp',
 * /courses/{courseId}/assignments/{assignmentId}:
 *   delete:
 *     summary:  Archive assignment
+*     description: Members may archive only assignments they created.
 *     tags: [Assignments]
 *     parameters:
-*      - in: path
-*        required: true
-*        name: courseId
-*        schema:
-*          type: string
-*        description: Id of course
-*      - in: path
-*        required: true
-*        name: assignmentId
-*        schema:
-*          type: string
-*        description: Id of assignment
+*      - $ref: '#/components/parameters/CourseId'
+*      - $ref: '#/components/parameters/AssignmentId'
 *     responses:
 *       200:
 *         description: Assignment Archived Successfully
@@ -373,12 +328,7 @@ router.delete('/courses/:courseId/assignments/:assignmentId',
  *     summary: Get Assignments
  *     tags: [Assignments]
  *     parameters:
- *      - in: path
- *        name: courseId
- *        required: true
- *        schema:
- *          type: string
- *        description: Id of course
+ *      - $ref: '#/components/parameters/CourseId'
  *      - in: query
  *        name: status
  *        schema:
@@ -386,7 +336,8 @@ router.delete('/courses/:courseId/assignments/:assignmentId',
  *          enum:
  *           - active
  *           - archived
- *           - all 
+ *           - all
+ *          default: active
  *        description: Filter between active and archived assignments
  *      - in: query
  *        name: source
@@ -398,18 +349,18 @@ router.delete('/courses/:courseId/assignments/:assignmentId',
  *        description: Filter between community-made and moderator-made assignments
  *     responses:
  *       200:
- *         description: Array of Assignment Objects
+ *         description: Array of Assignment Objects, each with this user's state attached
  *         content:
  *          application/json:
  *              schema:
  *                  type: array
  *                  items:
- *                      type: object
- *                      properties:
- *                          assignment:
- *                              $ref: '#/components/schemas/Assignment'
- *                          userState:
- *                              $ref: '#/components/schemas/AssignmentUserState'
+ *                      allOf:
+ *                          - $ref: '#/components/schemas/AssignmentWithUserState'
+ *                          - type: object
+ *                            properties:
+ *                                course:
+ *                                    type: string
  *       400:
  *         $ref: '#/components/responses/BadRequest'
  *       401:
@@ -461,42 +412,41 @@ router.get('/courses/:courseId/my/assignments',
  *   patch:
  *     summary: Edit personal assignment metadata
  *     tags: [Assignments]
+ *     description: Creates the state with defaults on first use. With no body, returns the current state unchanged.
  *     parameters:
- *      - in: path
- *        name: courseId
- *        required: true
- *        schema:
- *          type: string
- *        description: Id of course
- *      - in: path
- *        name: assignmentId
- *        required: true
- *        schema:
- *          type: string
- *        description: Id of assignment
+ *      - $ref: '#/components/parameters/CourseId'
+ *      - $ref: '#/components/parameters/AssignmentId'
  *     requestBody:
  *       content:
  *         application/json:
  *           schema:
  *              type: object
+ *              description: Any other field is rejected with INVALID_UPDATES.
+ *              additionalProperties: false
  *              properties:
  *                  state:
  *                      type: string
+ *                      enum:
+ *                       - not_started
+ *                       - in_progress
+ *                       - complete
  *                  personalNotes:
  *                      type: string
  *                  personalDueAt:
  *                      type: string
+ *                      format: date-time
+ *                      nullable: true
+ *                      description: null clears it, so the assignment's dueAt is shown again
  *                  completedAt:
  *                      type: string
+ *                      format: date-time
  *     responses:
  *       200:
- *         description: Array of Assignment Objects
+ *         description: This user's state for the assignment. personalDueAt falls back to the assignment's dueAt.
  *         content:
  *          application/json:
  *              schema:
- *                  type: array
- *                  items:
- *                     $ref: '#/components/schemas/AssignmentUserState'
+ *                  $ref: '#/components/schemas/AssignmentUserState'
  *       400:
  *         $ref: '#/components/responses/BadRequest'
  *       401:
@@ -548,29 +498,41 @@ router.patch('/courses/:courseId/assignments/:assignmentId/my-state',
  * /assignments:
  *   get:
  *     summary: Get all assignments with user states
+ *     description: Assignments from every course where the user is an active member.
  *     tags: [Assignments]
  *     parameters:
- *      - in: path
- *        name: courseId
- *        required: true
+ *      - in: query
+ *        name: status
  *        schema:
  *          type: string
- *        description: Id of course
- *      - in: path
- *        name: assignmentId
- *        required: true
+ *          enum:
+ *           - active
+ *           - archived
+ *           - all
+ *          default: active
+ *        description: Filter between active and archived assignments
+ *      - in: query
+ *        name: source
  *        schema:
  *          type: string
- *        description: Id of assignment
+ *          enum:
+ *           - community
+ *           - moderator
+ *        description: Filter between community-made and moderator-made assignments
  *     responses:
  *       200:
- *         description: Array of Assignment Objects
+ *         description: Array of Assignment Objects, each with its course (without joinCode) and this user's state
  *         content:
  *          application/json:
  *              schema:
  *                  type: array
  *                  items:
- *                     $ref: '#/components/schemas/AssignmentUserState'
+ *                      allOf:
+ *                          - $ref: '#/components/schemas/AssignmentWithUserState'
+ *                          - type: object
+ *                            properties:
+ *                                course:
+ *                                    $ref: '#/components/schemas/Course'
  *       401:
  *         $ref: '#/components/responses/Unauthorized'
 */
