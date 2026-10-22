@@ -12,6 +12,7 @@ const router = new Router()
  * /users:
  *   post:
  *     summary: Create User
+ *     description: Creates the account and signs it in. The server sets timezone, overriding any value sent.
  *     tags: [User]
  *     security: []
  *     requestBody:
@@ -19,25 +20,18 @@ const router = new Router()
  *       content:
  *         application/json:
  *           schema:
- *             type: object
  *             $ref: '#/components/schemas/UserCreateRequest'
  *     responses:
  *       201:
- *         description: User Object
+ *         description: The new user and a token
  *         content:
  *          application/json:
  *              schema:
- *                  type: object
- *                  properties:
- *                      user:
- *                          $ref: '#/components/schemas/UserPrivate'
- *                      token: 
- *                          type: string
- *                          
- *       409:
- *         $ref: '#/components/responses/Conflict'
+ *                  $ref: '#/components/schemas/AuthResponse'
  *       400:
  *         $ref: '#/components/responses/BadRequest'
+ *       409:
+ *         $ref: '#/components/responses/Conflict'
 */
 router.post('/users', async (req, res) => {
     const { body: data } = req
@@ -89,11 +83,20 @@ router.get('/users/me', auth, async (req, res) => {
  *     tags: [User]
  *     parameters:
  *      - in: query
+ *        name: q
+ *        schema:
+ *          type: string
+ *        description: Case-insensitive match anywhere in the username
+ *      - in: query
  *        name: offset
  *        schema:
  *          type: integer
  *        description: The number of users to skip before starting to collect the result
- *          
+ *      - in: query
+ *        name: limit
+ *        schema:
+ *          type: integer
+ *        description: The most users to return. Omit for no limit.
  *     responses:
  *       200:
  *         description: User objects
@@ -132,19 +135,17 @@ router.get('/users', auth, async (req, res) => {
  *     summary: Get 'User By Id'
  *     tags: [User]
  *     parameters:
- *      - in: path
- *        name: userId
- *        schema:
- *          type: string
- *        description: Id of User you want details of
- *        required: true
+ *      - $ref: '#/components/parameters/UserId'
  *     responses:
  *       200:
- *         description: User object
+ *         description: The user's public profile
  *         content:
  *          application/json:
  *              schema:
- *                  $ref: '#/components/schemas/UserPublic'
+ *                  type: object
+ *                  properties:
+ *                      user:
+ *                          $ref: '#/components/schemas/UserPublic'
  *       400:
  *         $ref: '#/components/responses/BadRequest'
  *       401:
@@ -199,12 +200,7 @@ router.get('/user/:userId', auth, async (req, res) => {
  *         content:
  *          application/json:
  *              schema:
- *                  type: object
- *                  properties:
- *                      user:
- *                          $ref: '#/components/schemas/UserPrivate'
- *                      token:
- *                          type: string
+ *                  $ref: '#/components/schemas/AuthResponse'
  *       400:
  *          $ref: '#/components/responses/BadRequest'
  */
@@ -259,6 +255,9 @@ router.post('/user/sign-out', auth, async (req, res) => {
  *         application/json:
  *           schema:
  *             type: object
+ *             description: At least one field. Any other field is rejected with INVALID_UPDATES.
+ *             minProperties: 1
+ *             additionalProperties: false
  *             properties:
  *               username:
  *                 type: string
@@ -271,10 +270,11 @@ router.post('/user/sign-out', auth, async (req, res) => {
  *                 example: demo@studybuddy.com
  *               password:
  *                 type: string
+ *                 minLength: 8
  *                 example: DemoPassword123!
  *     responses:
  *       200:
- *         description: Successful login
+ *         description: The updated user
  *         content:
  *          application/json:
  *              schema:

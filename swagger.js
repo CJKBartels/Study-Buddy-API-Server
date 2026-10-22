@@ -11,13 +11,15 @@ const options = {
                 UserPublic: {
                     type: 'object',
                     properties: {
-                        id: { type: 'string' },
+                        _id: { type: 'string' },
                         username: { type: 'string' },
                         timezone: { type: 'string' },
                         createdAt: { type: 'string', format: 'date-time' },
                     },
                 },
 
+                // The signed-in user's own record. password and tokens are
+                // stripped by the model's toJSON.
                 UserPrivate: {
                     allOf: [
                         { $ref: '#/components/schemas/UserPublic' },
@@ -25,11 +27,19 @@ const options = {
                             type: 'object',
                             properties: {
                                 email: { type: 'string', format: 'email' },
-                                password: { type: 'string', format: 'password' },
                                 updatedAt: { type: 'string', format: 'date-time' },
                             }
                         }
                     ]
+                },
+
+                // Returned by sign-up and sign-in
+                AuthResponse: {
+                    type: 'object',
+                    properties: {
+                        user: { $ref: '#/components/schemas/UserPrivate' },
+                        token: { type: 'string', description: 'JWT for the Authorization header, valid for 7 days' },
+                    }
                 },
 
                 UserCreateRequest: {
@@ -40,9 +50,9 @@ const options = {
                         'password'
                     ],
                     properties: {
-                        username: { type: 'string' },
+                        username: { type: 'string', description: 'Stored lowercase' },
                         email: { type: 'string', format: 'email' },
-                        password: { type: 'string', format: 'password' },
+                        password: { type: 'string', format: 'password', minLength: 8 },
                     },
                 },
 
