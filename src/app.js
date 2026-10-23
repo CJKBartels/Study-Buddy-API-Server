@@ -23,6 +23,17 @@ app.use(function (req, res, next) {
 
 // First, so monitors get a fast answer without going through other routers
 app.use(healthRouter)
+
+// TEMPORARY (#7): shows the proxy chain the deployed app receives, so the
+// trust proxy hop count can be read instead of guessed. Remove with #7.
+app.get('/debug/ip', (req, res) => {
+    res.send({
+        ip: req.ip,
+        connectedFrom: req.socket.remoteAddress,
+        forwardedFor: req.get('X-Forwarded-For') ?? null,
+        doConnectingIp: req.get('DO-Connecting-IP') ?? null
+    })
+})
 app.use(userRouter)
 app.use(assignmentRouter)
 app.use(sessionRouter)
