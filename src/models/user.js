@@ -49,6 +49,7 @@ const userSchema = new Schema({
     timezone: {
         type: String,
         required: true,
+        default: 'UTC',
         validate: {
             validator: (tz) => isValidTimeZone(tz),
             message: 'Invalid Time Zone'
@@ -96,6 +97,12 @@ userSchema.methods.generateAuthToken = async function () {
 // can't tell which, on purpose). Real failures, like a database error, still
 // throw, so they aren't mistaken for bad credentials.
 userSchema.statics.findByCredentials = async (email, password) => {
+    // JSON can carry objects, and { $ne: null } as the email would reach the
+    // query as a filter that matches a user instead of a value to compare
+    if (typeof email !== 'string' || typeof password !== 'string') {
+        return null
+    }
+
     const user = await User.findOne({ email })
 
     if (!user) {
