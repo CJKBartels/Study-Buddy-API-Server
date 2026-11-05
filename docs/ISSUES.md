@@ -157,6 +157,6 @@ These are real but not MVP-blocking; they live in
   responses).
 - Server-side token pruning on logout.
 - Capacity/waitlist enforcement.
-- Duplicate/over-broad CORS; add `helmet` + rate limiting.
+- Duplicate/over-broad CORS; add `helmet`. (Rate limiting: done in #7.)
 - Input validation layer; pagination guards everywhere.
 - Frontend: env-based API URL + global 401 handling (`Study-Buddy/src/assets/fetch.js`).
