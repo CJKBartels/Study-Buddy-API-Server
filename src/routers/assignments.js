@@ -10,6 +10,29 @@ import AppError from '../assets/AppError.js'
 
 const router = new Router()
 
+// The filters all 3 list routes share. An unknown value is a mistake, so it
+// gets a 400 instead of an empty list. 'all' means no status filter at all.
+function listFilters({ status = 'active', source }) {
+    const details = {}
+
+    if (!['active', 'archived', 'all'].includes(status)) {
+        details.status = 'Must be active, archived, or all'
+    }
+
+    if (source && !['community', 'moderator'].includes(source)) {
+        details.source = 'Must be community or moderator'
+    }
+
+    if (Object.keys(details).length > 0) {
+        throw new AppError('VALIDATION_ERROR', { details })
+    }
+
+    return {
+        ...(status !== 'all' && { status }),
+        ...(source && { source })
+    }
+}
+
 /**
  * Create Assignment
  * 
@@ -112,22 +135,7 @@ router.get('/courses/:courseId/assignments',
     async (req, res) => {
         const { course, query } = req
 
-        const filter = {
-            course: course._id,
-            status: 'active'
-        }
-
-        if (query?.source) {
-            filter.source = query.source
-        }
-
-        if (query?.status) {
-            filter.status = query.status
-        }
-
-        if (query?.status == 'all') {
-            delete filter.status
-        }
+        const filter = { course: course._id, ...listFilters(query) }
 
         const assignments = await Assignment.find(filter, { course: 0 })
         res.status(200).send(assignments)
@@ -368,22 +376,7 @@ router.get('/courses/:courseId/my/assignments',
     async (req, res) => {
         const { course, user, query } = req
 
-        const filter = {
-            course: course._id,
-            status: 'active'
-        }
-
-        if (query?.source) {
-            filter.source = query.source
-        }
-
-        if (query?.status) {
-            filter.status = query.status
-        }
-
-        if (query?.status == 'all') {
-            delete filter.status
-        }
+        const filter = { course: course._id, ...listFilters(query) }
 
         const assignments = await Assignment.find(filter, { __v: 0, updatedAt: 0 }).lean()
 
@@ -514,6 +507,8 @@ router.patch('/courses/:courseId/assignments/:assignmentId/my-state',
  *                            properties:
  *                                course:
  *                                    $ref: '#/components/schemas/Course'
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
  *       401:
  *         $ref: '#/components/responses/Unauthorized'
 */
@@ -523,22 +518,7 @@ router.get('/assignments', auth, async (req, res) => {
     let courses = await CourseMembership.find({ user: user._id, status: 'active' }, { course: 1 })
     courses = courses.map(course => course.course)
 
-    const filter = {
-        status: 'active',
-        course: { $in: courses }
-    }
-
-    if (query?.source) {
-        filter.source = query.source
-    }
-
-    if (query?.status) {
-        filter.status = query.status
-    }
-
-    if (query?.status == 'all') {
-        delete filter.status
-    }
+    const filter = { course: { $in: courses }, ...listFilters(query) }
 
     // The course is shown with each assignment, but never its join code,
     // which only admins may see

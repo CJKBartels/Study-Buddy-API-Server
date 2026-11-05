@@ -872,3 +872,21 @@ describe('DELETE /courses/:courseId/sessions/:sessionId/messages/:messageId', ()
         expect(res.body.error.code).toBe('MESSAGE_NOT_FOUND')
     })
 })
+
+describe('GET /courses/:courseId/sessions?mine', () => {
+    it('shows sessions hosted by others with mine=false', async () => {
+        const { member, course } = await sessionWithMember()
+
+        const res = await call('get', member.token, `/courses/${course._id}/sessions?mine=false`)
+
+        expect(res.body).toHaveLength(1)
+    })
+
+    it('leaves them out with mine=true', async () => {
+        const { member, course } = await sessionWithMember()
+
+        const res = await call('get', member.token, `/courses/${course._id}/sessions?mine=true`)
+
+        expect(res.body).toHaveLength(0)
+    })
+})

@@ -627,3 +627,50 @@ describe('GET /assignments', () => {
         expect(res.body.error.code).toBe('UNAUTHORIZED')
     })
 })
+
+describe('assignment list filters', () => {
+    const listUrls = [
+        ['GET .../assignments', (courseId) => `/courses/${courseId}/assignments`],
+        ['GET .../my/assignments', (courseId) => `/courses/${courseId}/my/assignments`],
+        ['GET /assignments', () => '/assignments']
+    ]
+
+    it.each(listUrls)('%s rejects an unknown status', async (name, url) => {
+        const { token } = await createAndSignIn()
+        const course = await createCourse(token)
+
+        const res = await request(app)
+            .get(`${url(course._id)}?status=bogus`)
+            .set('Authorization', `Bearer ${token}`)
+
+        expect(res.status).toBe(400)
+        expect(res.body.error.details.status).toBeDefined()
+    })
+
+    it.each(listUrls)('%s rejects an unknown source', async (name, url) => {
+        const { token } = await createAndSignIn()
+        const course = await createCourse(token)
+
+        const res = await request(app)
+            .get(`${url(course._id)}?source=bogus`)
+            .set('Authorization', `Bearer ${token}`)
+
+        expect(res.status).toBe(400)
+        expect(res.body.error.details.source).toBeDefined()
+    })
+
+    it.each(listUrls)('%s shows archived assignments with status=all', async (name, url) => {
+        const { token } = await createAndSignIn()
+        const course = await createCourse(token)
+        const created = await createAssignment(token, course._id)
+        await request(app)
+            .delete(`/courses/${course._id}/assignments/${created.body._id}`)
+            .set('Authorization', `Bearer ${token}`)
+
+        const res = await request(app)
+            .get(`${url(course._id)}?status=all`)
+            .set('Authorization', `Bearer ${token}`)
+
+        expect(res.body).toHaveLength(1)
+    })
+})

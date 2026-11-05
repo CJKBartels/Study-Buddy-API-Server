@@ -462,7 +462,7 @@ router.get('/courses/:courseId/members', auth, isCourse, isCourseMember, async (
 
     const members = await CourseMembership.find(
         { course: course._id, status: 'active' },
-        { status: 0, courseId: 0, updatedAt: 0, __v: 0 })
+        { status: 0, course: 0, updatedAt: 0, __v: 0 })
         .populate('user', 'username')
 
     res.status(200).send(members)
