@@ -48,6 +48,27 @@ sessionParticipantSchema.methods.canMoveTo = function (status) {
     return ALLOWED_MOVES[this.status]?.includes(status) ?? false
 }
 
+// Fill open spots from the waitlist, longest-waiting first. Call it from every
+// path that can open a spot (leave, remove, raising capacity, deleting an
+// account). This is the server-side waitlisted -> accepted move the status
+// table allows and that RSVP and join refuse. Each promotion is one atomic
+// findOneAndUpdate, so two promotions running at once never pick the same
+// person. Missing a call only delays promotion until the next trigger; it
+// can't corrupt anything.
+sessionParticipantSchema.statics.promoteFromWaitlist = async function (session) {
+    const accepted = await this.countDocuments({ session: session._id, status: 'accepted' })
+    const openSpots = session.capacity == null ? Infinity : session.capacity - accepted
+
+    for (let promoted = 0; promoted < openSpots; promoted++) {
+        const next = await this.findOneAndUpdate(
+            { session: session._id, status: 'waitlisted' },
+            { status: 'accepted' },
+            { sort: { respondedAt: 1, _id: 1 } }
+        )
+        if (!next) break
+    }
+}
+
 const SessionParticipant = model('SessionParticipant', sessionParticipantSchema)
 
 export default SessionParticipant
