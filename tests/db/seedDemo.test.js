@@ -66,6 +66,9 @@ describe('seedDemo', () => {
         await seedDemo()
         const expected = await counts()
         const token = (await signIn(DEMO_EMAIL, DEMO_PASSWORD)).body.token
+        // The demo user is the last admin, so a visitor has to appoint another first
+        const maya = await User.findOne({ username: 'maya' })
+        await CourseMembership.updateOne({ user: maya._id }, { role: 'admin' })
         await request(app).delete('/users/me').set('Authorization', `Bearer ${token}`)
         // ...then took the freed username and email for their own account
         const signUpRes = await request(app).post('/users').send({ username: 'demo', email: DEMO_EMAIL, password: 'visitor-password' })
