@@ -170,7 +170,7 @@ router.get('/courses/:courseId/sessions', auth, isCourse, isCourseMember, async 
     const { user, course, query } = req
     let filter = { course: course._id }
 
-    if (query?.mine) {
+    if (query.mine === 'true') {
         filter.host = user._id
     }
 

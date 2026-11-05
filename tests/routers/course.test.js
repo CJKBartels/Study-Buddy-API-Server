@@ -688,3 +688,17 @@ describe('DELETE /courses/:courseId/members/:userId', () => {
         expect(res.body.error.code).toBe('NOT_COURSE_ADMIN')
     })
 })
+
+describe('GET /courses/:courseId/members fields', () => {
+    it('leaves out the course, which the caller already knows', async () => {
+        const { token } = await createAndSignIn()
+        const course = await createCourse(token)
+
+        const res = await request(app)
+            .get(`/courses/${course._id}/members`)
+            .set('Authorization', `Bearer ${token}`)
+
+        expect(res.body).toHaveLength(1)
+        expect(res.body[0].course).toBeUndefined()
+    })
+})
