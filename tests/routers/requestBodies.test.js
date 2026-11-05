@@ -28,6 +28,7 @@ function call(method, token, url) {
 const courseFields = { courseName: 'Intro to Testing', courseCode: 'CS101' }
 const assignmentFields = { title: 'Problem Set 1', dueAt: '2030-05-01T00:00:00.000Z' }
 const sessionFields = {
+    goal: 'Finish practice exam',
     title: 'Midterm review',
     startsAt: '2030-05-01T18:00:00.000Z',
     endsAt: '2030-05-01T20:00:00.000Z'
@@ -44,6 +45,10 @@ async function fullCourse() {
     const session = (await call('post', token, `${courseUrl}/sessions`).send(sessionFields)).body
     const sessionUrl = `${courseUrl}/sessions/${session._id}`
     const message = (await call('post', token, `${sessionUrl}/messages`).send({ message: 'Hello' })).body
+
+    // A broken setup would turn these ids into undefined, and the tests below
+    // would then pass on a 400 for the bad id instead of the missing body
+    expect([assignment._id, session._id, message._id]).not.toContain(undefined)
 
     return {
         token,
