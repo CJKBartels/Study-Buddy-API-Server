@@ -114,7 +114,7 @@ const options = {
                         courseName: { type: 'string' },
                         courseCode: { type: 'string' },
                         school: { type: 'string' },
-                        isPublic: { type: 'boolean', default: true },
+                        isPublic: { type: 'boolean', default: true, description: 'A private course is hidden from non-members, who get a 404 on its routes. Members still join with the join code.' },
                     }
                 },
 
