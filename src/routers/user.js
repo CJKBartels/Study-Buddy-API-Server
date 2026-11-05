@@ -4,6 +4,7 @@ import auth from '../middleware/auth.js'
 import AppError from '../assets/AppError.js'
 import { signInLimiter, signUpLimiter } from '../middleware/rateLimit.js'
 import { acceptFields } from '../middleware/acceptFields.js'
+import { deleteAccount } from '../operations/deleteAccount.js'
 
 const router = new Router()
 
@@ -324,15 +325,18 @@ router.patch('/users/me', auth,
  * /users/me:
  *   delete:
  *     summary: Delete Account
+ *     description: Removes the account, its memberships, availability, assignment progress, and session spots. Upcoming sessions it hosts are cancelled. Its assignments and messages stay, with an author that no longer exists, so `createdBy` can be null and `sender` can match no user. Refused with LAST_ADMIN while the user is the last admin of a course; `details.courses` lists those courses.
  *     tags: [User]
  *     responses:
  *       204:
  *         description: Account deleted. No body.
  *       401:
  *         $ref: '#/components/responses/Unauthorized'
+ *       409:
+ *         $ref: '#/components/responses/Conflict'
  */
 router.delete('/users/me', auth, async (req, res) => {
-    await req.user.deleteOne()
+    await deleteAccount(req.user)
 
     res.status(204).send()
 })
