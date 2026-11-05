@@ -8,7 +8,7 @@ import AssignmentUserState from '../models/assignmentUserState.js'
 import Session from '../models/session.js'
 import SessionParticipant from '../models/sessionParticipant.js'
 import SessionMessage from '../models/sessionMessage.js'
-import { isCourseAdmin, isCourse, isCourseMember } from '../middleware/courseAccess.js'
+import { canSeeCourse, isCourseAdmin, isCourse, isCourseMember } from '../middleware/courseAccess.js'
 import { acceptFields } from '../middleware/acceptFields.js'
 import AppError from '../assets/AppError.js'
 
@@ -122,7 +122,7 @@ function generateJoinCode(length = CODE_LENGTH) {
  *       404:
  *         $ref: '#/components/responses/NotFound'
 */
-router.get('/courses/:courseId', auth, isCourse, async (req, res) => {
+router.get('/courses/:courseId', auth, isCourse, canSeeCourse, async (req, res) => {
     const { course } = req
     const data = course.toObject()
     delete data.joinCode
@@ -172,6 +172,7 @@ router.get('/courses/:courseId/joinCode', auth, isCourse, isCourseAdmin, async (
  * /courses:
  *   get:
  *     summary: Get Courses
+ *     description: Public courses, plus private courses the caller is an active member of.
  *     tags: [Course]
  *     responses:
  *       200:
@@ -186,7 +187,11 @@ router.get('/courses/:courseId/joinCode', auth, isCourse, isCourseAdmin, async (
  *         $ref: '#/components/responses/Unauthorized'
 */
 router.get('/courses', auth, async (req, res) => {  //Add more functionality later
-    const courses = await Course.find({}, { joinCode: 0 })
+    const memberships = await CourseMembership.find({ user: req.user._id, status: 'active' }, { course: 1 })
+
+    const courses = await Course.find(
+        { $or: [{ isPublic: { $ne: false } }, { _id: { $in: memberships.map((membership) => membership.course) } }] },
+        { joinCode: 0 })
 
     res.status(200).send(courses)
 })

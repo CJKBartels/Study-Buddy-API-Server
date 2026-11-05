@@ -21,31 +21,42 @@ export const isCourse = async (req, res, next) => {
     next()
 }
 
+// The caller's active membership of req.course. Anyone without one is turned
+// away here, and for a private course the answer is the same as for a course
+// that doesn't exist, so the response doesn't confirm that it does.
+async function activeMembership(req) {
+    const { course, user } = req
+    const membership = await CourseMembership.findOne({ course: course._id, user: user._id })
+
+    if (membership?.status === 'active') {
+        return membership
+    }
+
+    if (!course.isPublic) {
+        throw new AppError('COURSE_NOT_FOUND')
+    }
+
+    throw new AppError(membership ? 'COURSE_BANNED' : 'NOT_COURSE_MEMBER')
+}
+
+// For routes open to anyone who can see the course: everyone for a public
+// course, active members for a private one
+export const canSeeCourse = async (req, res, next) => {
+    if (!req.course.isPublic) {
+        await activeMembership(req)
+    }
+
+    next()
+}
+
 export const isCourseMember = async (req, res, next) => {
-    const membership = await CourseMembership.findOne({ course: req.params.courseId, user: req.user._id })
-    if (!membership) {
-        return next(new AppError('NOT_COURSE_MEMBER'))
-    }
-
-    if (membership.status == 'banned') {
-        return next(new AppError('COURSE_BANNED'))
-    }
-
-    req.courseMembership = membership
+    req.courseMembership = await activeMembership(req)
 
     next()
 }
 
 export const isCourseAdmin = async (req, res, next) => {
-    const membership = await CourseMembership.findOne({ course: req.params.courseId, user: req.user._id })
-
-    if (!membership) {
-        return next(new AppError('NOT_COURSE_MEMBER'))
-    }
-
-    if (membership.status == 'banned') {
-        return next(new AppError('COURSE_BANNED'))
-    }
+    const membership = await activeMembership(req)
 
     if (membership.role != 'admin') {
         return next(new AppError('NOT_COURSE_ADMIN'))
@@ -57,15 +68,7 @@ export const isCourseAdmin = async (req, res, next) => {
 }
 
 export const isCourseModerator = async (req, res, next) => {
-    const membership = await CourseMembership.findOne({ course: req.params.courseId, user: req.user._id })
-
-    if (!membership) {
-        return next(new AppError('NOT_COURSE_MEMBER'))
-    }
-
-    if (membership.status == 'banned') {
-        return next(new AppError('COURSE_BANNED'))
-    }
+    const membership = await activeMembership(req)
 
     if (membership.role == 'member') {
         return next(new AppError('NOT_COURSE_MODERATOR'))
