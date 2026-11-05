@@ -14,7 +14,7 @@ const router = new Router()
  * /users:
  *   post:
  *     summary: Create User
- *     description: Creates the account and signs it in. The server sets timezone, overriding any value sent.
+ *     description: Creates the account and signs it in. The timezone defaults to UTC if not sent.
  *     tags: [User]
  *     security: []
  *     requestBody:
@@ -37,11 +37,10 @@ const router = new Router()
  *       429:
  *         $ref: '#/components/responses/TooManyRequests'
 */
-router.post('/users', signUpLimiter(), async (req, res) => {
-    const { body: data } = req
-
-    data.timezone = Intl.DateTimeFormat().resolvedOptions().timeZone
-    const user = new User(data)
+router.post('/users', signUpLimiter(),
+    acceptFields(['username', 'email', 'password', 'timezone']),
+    async (req, res) => {
+    const user = new User(req.body)
 
     // A Mongoose ValidationError or an E11000 duplicate-key error here propagates
     // to the central error handler, which maps them to VALIDATION_ERROR (with

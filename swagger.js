@@ -53,6 +53,7 @@ const options = {
                         username: { type: 'string', description: 'Stored lowercase' },
                         email: { type: 'string', format: 'email' },
                         password: { type: 'string', format: 'password', minLength: 8 },
+                        timezone: { type: 'string', description: 'An IANA timezone name, such as America/Chicago', default: 'UTC' },
                     },
                 },
 

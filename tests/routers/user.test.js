@@ -584,3 +584,51 @@ describe('DELETE /users/me', () => {
         expect(res.body.error.code).toBe('UNAUTHORIZED')
     })
 })
+
+describe('POST /users fields', () => {
+    it.each([
+        ['tokens', [{ token: 'fake', expiresAt: '2030-01-01T00:00:00.000Z' }]],
+        ['_id', '000000000000000000000001']
+    ])('rejects %s, which only the server sets', async (field, value) => {
+        const res = await request(app).post('/users').send({ ...baseUser(), [field]: value })
+
+        expect(res.status).toBe(400)
+        expect(res.body.error.details[field]).toBeDefined()
+    })
+
+    it('uses the timezone the client sends', async () => {
+        const res = await request(app).post('/users').send({ ...baseUser(), timezone: 'America/Chicago' })
+
+        expect(res.body.user.timezone).toBe('America/Chicago')
+    })
+
+    it('defaults to UTC when the client sends no timezone', async () => {
+        const res = await request(app).post('/users').send(baseUser())
+
+        expect(res.body.user.timezone).toBe('UTC')
+    })
+
+    it('rejects a timezone that does not exist', async () => {
+        const res = await request(app).post('/users').send({ ...baseUser(), timezone: 'Mars/Olympus' })
+
+        expect(res.status).toBe(400)
+        expect(res.body.error.code).toBe('VALIDATION_ERROR')
+    })
+})
+
+describe('POST /user/sign-in with the wrong types', () => {
+    it.each([
+        ['no body', undefined],
+        ['no password', { email: 'test@example.com' }],
+        ['no email', { password: 'Password1!' }],
+        ['an object as the email', { email: { $ne: null }, password: 'Password1!' }],
+        ['a number as the password', { email: 'test@example.com', password: 12345 }]
+    ])('answers INVALID_CREDENTIALS for %s', async (name, body) => {
+        await createUser()
+
+        const res = await request(app).post('/user/sign-in').send(body)
+
+        expect(res.status).toBe(400)
+        expect(res.body.error.code).toBe('INVALID_CREDENTIALS')
+    })
+})

@@ -34,8 +34,14 @@ describe('User model', () => {
             await expect(saveUser({ email: undefined })).rejects.toThrow()
         })
 
-        it('requires timezone', async () => {
-            await expect(saveUser({ timezone: undefined })).rejects.toThrow()
+        it('defaults a missing timezone to UTC', async () => {
+            const user = await saveUser({ timezone: undefined })
+
+            expect(user.timezone).toBe('UTC')
+        })
+
+        it('rejects a timezone set to null', async () => {
+            await expect(saveUser({ timezone: null })).rejects.toThrow()
         })
 
         it('rejects a password shorter than 8 characters', async () => {
