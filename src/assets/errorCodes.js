@@ -21,6 +21,7 @@ export const ERROR_CODES = Object.freeze({
     USER_NOT_FOUND: { status: 404, message: 'User does not exist' },
     COURSE_NOT_FOUND: { status: 404, message: 'Course does not exist' },
     ASSIGNMENT_NOT_FOUND: { status: 404, message: 'Assignment does not exist' },
+    LAST_ADMIN: { status: 409, message: 'A course needs an admin. Appoint another admin first' },
     NOT_COURSE_MEMBER: { status: 403, message: 'User is not a member of course' },
     NOT_COURSE_ADMIN: { status: 403, message: 'User is not an admin of course' },
     NOT_COURSE_MODERATOR: { status: 403, message: 'User is not a moderator of course' },

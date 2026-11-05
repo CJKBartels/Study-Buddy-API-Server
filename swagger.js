@@ -423,7 +423,7 @@ const options = {
                     content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
                 },
                 Conflict: {
-                    description: 'Clashes with current state. Codes: CONFLICT, DUPLICATE_ACCOUNT, ALREADY_PARTICIPANT, INVALID_STATUS_CHANGE.',
+                    description: 'Clashes with current state. Codes: CONFLICT, DUPLICATE_ACCOUNT, ALREADY_PARTICIPANT, INVALID_STATUS_CHANGE, LAST_ADMIN.',
                     content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
                 },
                 TooManyRequests: {

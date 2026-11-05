@@ -14,6 +14,12 @@ import AppError from '../assets/AppError.js'
 
 const router = new Router()
 
+async function refuseIfLastAdmin(courseId, userId) {
+    if (await CourseMembership.isLastAdmin(courseId, userId)) {
+        throw new AppError('LAST_ADMIN')
+    }
+}
+
 /**
  * Create Course
  * 
@@ -595,11 +601,19 @@ router.get('/courses/:courseId/members/:userId', auth, isCourse, isCourseMember,
  *         $ref: '#/components/responses/Forbidden'
  *       404:
  *         $ref: '#/components/responses/NotFound'
+ *       409:
+ *         $ref: '#/components/responses/Conflict'
  */
 router.patch('/courses/:courseId/members/:userId', auth, isCourse, isCourseAdmin,
     acceptFields(['role', 'status'], { atLeastOne: true }),
     async (req, res) => {
     const { body: updates, course, params } = req
+
+    const losesAdmin = (updates.role && updates.role !== 'admin') || updates.status === 'banned'
+
+    if (losesAdmin) {
+        await refuseIfLastAdmin(course._id, params.userId)
+    }
 
     const membership = await CourseMembership.findOneAndUpdate(
         { course: course._id, user: params.userId },
@@ -634,9 +648,13 @@ router.patch('/courses/:courseId/members/:userId', auth, isCourse, isCourseAdmin
  *         $ref: '#/components/responses/Forbidden'
  *       404:
  *         $ref: '#/components/responses/NotFound'
+ *       409:
+ *         $ref: '#/components/responses/Conflict'
  */
 router.delete('/courses/:courseId/members/me', auth, isCourse, isCourseMember, async (req, res) => {
     const { course, user } = req
+
+    await refuseIfLastAdmin(course._id, user._id)
 
     await CourseMembership.deleteOne({ course: course._id, user: user._id })
     res.status(204).send()
@@ -664,9 +682,13 @@ router.delete('/courses/:courseId/members/me', auth, isCourse, isCourseMember, a
  *         $ref: '#/components/responses/Forbidden'
  *       404:
  *         $ref: '#/components/responses/NotFound'
+ *       409:
+ *         $ref: '#/components/responses/Conflict'
  */
 router.delete('/courses/:courseId/members/:userId', auth, isCourse, isCourseAdmin, async (req, res) => {
     const { course, params } = req
+
+    await refuseIfLastAdmin(course._id, params.userId)
 
     const { deletedCount } = await CourseMembership.deleteOne({ course: course._id, user: params.userId })
 
