@@ -282,7 +282,7 @@ describe('PATCH /courses/:courseId/assignments/:assignmentId', () => {
         expect(res.body.source).toBe('moderator')
     })
 
-    it('returns 400 INVALID_UPDATES for a non-modifiable field', async () => {
+    it('returns 400 VALIDATION_ERROR naming a field that cannot be changed', async () => {
         const { member, course } = await courseWithMember()
         const created = await createAssignment(member.token, course._id)
         const res = await request(app)
@@ -290,7 +290,8 @@ describe('PATCH /courses/:courseId/assignments/:assignmentId', () => {
             .set('Authorization', `Bearer ${member.token}`)
             .send({ status: 'archived' })
         expect(res.status).toBe(400)
-        expect(res.body.error.code).toBe('INVALID_UPDATES')
+        expect(res.body.error.code).toBe('VALIDATION_ERROR')
+        expect(res.body.error.details.status).toBeDefined()
     })
 
     it('returns 400 INVALID_UPDATES for an empty update body', async () => {
@@ -466,7 +467,7 @@ describe('PATCH /courses/:courseId/assignments/:assignmentId/my-state', () => {
         expect(await AssignmentUserState.countDocuments({})).toBe(1)
     })
 
-    it('returns 400 INVALID_UPDATES for a non-modifiable field', async () => {
+    it('returns 400 VALIDATION_ERROR naming a field that cannot be changed', async () => {
         const { member, course } = await courseWithMember()
         const created = await createAssignment(member.token, course._id)
         const res = await request(app)
@@ -474,7 +475,8 @@ describe('PATCH /courses/:courseId/assignments/:assignmentId/my-state', () => {
             .set('Authorization', `Bearer ${member.token}`)
             .send({ course: NON_EXISTENT_ID })
         expect(res.status).toBe(400)
-        expect(res.body.error.code).toBe('INVALID_UPDATES')
+        expect(res.body.error.code).toBe('VALIDATION_ERROR')
+        expect(res.body.error.details.course).toBeDefined()
     })
 
     it('returns 400 VALIDATION_ERROR for a state outside the enum', async () => {

@@ -5,6 +5,7 @@ import { isCourse, isCourseMember, isCourseModerator } from '../middleware/cours
 import { isAssignment } from '../middleware/assignmentAccess.js'
 import AssignmentUserState, { withUserState } from '../models/assignmentUserState.js'
 import CourseMembership from '../models/courseMembership.js'
+import { acceptFields } from '../middleware/acceptFields.js'
 import AppError from '../assets/AppError.js'
 
 const router = new Router()
@@ -16,7 +17,7 @@ const router = new Router()
  * /courses/{courseId}/assignments:
  *   post:
  *     summary: Create Assignment
- *     description: The server sets createdBy, course, and source (community for members, moderator for moderators and admins), overriding any values sent.
+ *     description: The server sets createdBy, course, status, and source (community for members, moderator for moderators and admins). Sending any field not listed here returns 400.
  *     tags: [Assignments]
  *     parameters:
  *      - $ref: '#/components/parameters/CourseId'
@@ -44,16 +45,19 @@ const router = new Router()
 */
 router.post('/courses/:courseId/assignments',
     auth, isCourse, isCourseMember,
+    // createdBy, course, source, and status are set by the server, never the client
+    acceptFields(['title', 'description', 'dueAt']),
     async (req, res) => {
-        const { body: data, user, course, courseMembership } = req
-
-        data.createdBy = user._id
-        data.course = course._id
-        data.source = courseMembership.role == 'member' ? 'community' : 'moderator'
+        const { body, user, course, courseMembership } = req
 
         // A ValidationError from create() propagates to the central handler as a
         // 400 VALIDATION_ERROR with per-field details.
-        const assignment = await Assignment.create(data)
+        const assignment = await Assignment.create({
+            ...body,
+            createdBy: user._id,
+            course: course._id,
+            source: courseMembership.role == 'member' ? 'community' : 'moderator'
+        })
         res.status(200).send(assignment)
     })
 
@@ -204,21 +208,10 @@ router.get('/courses/:courseId/assignments/:assignmentId',
 */
 router.patch('/courses/:courseId/assignments/:assignmentId',
     auth, isCourse, isCourseMember, isAssignment,
+    acceptFields(['title', 'description', 'dueAt'], { atLeastOne: true }),
     async (req, res) => {
         const { body: mods, courseMembership, user, assignment } = req
-
-        if (Object.keys(mods).length === 0) {
-            throw new AppError('INVALID_UPDATES', { message: 'Missing updates' })
-        }
-
         const props = Object.keys(mods)
-        const modifiable = ['title', 'description', 'dueAt']
-
-        const isValid = props.every((prop) => modifiable.includes(prop))
-
-        if (!isValid) {
-            throw new AppError('INVALID_UPDATES')
-        }
 
         if (!user._id.equals(assignment.createdBy) && courseMembership.role == 'member') {
             throw new AppError('FORBIDDEN', { message: 'Insufficient authorization to edit this assignment' })
@@ -421,7 +414,7 @@ router.get('/courses/:courseId/my/assignments',
  *         application/json:
  *           schema:
  *              type: object
- *              description: Any other field is rejected with INVALID_UPDATES.
+ *              description: Any other field is rejected with VALIDATION_ERROR.
  *              additionalProperties: false
  *              properties:
  *                  state:
@@ -458,6 +451,7 @@ router.get('/courses/:courseId/my/assignments',
 */
 router.patch('/courses/:courseId/assignments/:assignmentId/my-state',
     auth, isCourse, isCourseMember, isAssignment,
+    acceptFields(['state', 'personalNotes', 'personalDueAt', 'completedAt']),
     async (req, res) => {
         const { body: mods, course, user, assignment } = req
 
@@ -470,20 +464,7 @@ router.patch('/courses/:courseId/assignments/:assignmentId/my-state',
             personalDueAt: state.personalDueAt ?? assignment.dueAt
         })
 
-        if (!mods) {
-            return res.status(200).send(withEffectiveDueAt(userState))
-        }
-
-        const props = Object.keys(mods)
-        const modifiable = ['state', 'personalNotes', 'personalDueAt', 'completedAt']
-
-        const isValid = props.every((prop) => modifiable.includes(prop))
-
-        if (!isValid) {
-            throw new AppError('INVALID_UPDATES')
-        }
-
-        props.forEach((prop) => userState[prop] = mods[prop])
+        Object.keys(mods).forEach((prop) => userState[prop] = mods[prop])
 
         // A ValidationError from save() propagates to the central handler as a
         // 400 VALIDATION_ERROR with per-field details.

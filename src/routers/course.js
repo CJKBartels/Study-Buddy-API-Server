@@ -9,6 +9,7 @@ import Session from '../models/session.js'
 import SessionParticipant from '../models/sessionParticipant.js'
 import SessionMessage from '../models/sessionMessage.js'
 import { isCourseAdmin, isCourse, isCourseMember } from '../middleware/courseAccess.js'
+import { acceptFields } from '../middleware/acceptFields.js'
 import AppError from '../assets/AppError.js'
 
 const router = new Router()
@@ -41,7 +42,10 @@ const router = new Router()
  *       500:
  *         description: Failed to generate unique join code
 */
-router.post('/courses', auth, async (req, res) => {
+router.post('/courses', auth,
+    // createdBy and joinCode are set by the server, never the client
+    acceptFields(['title', 'courseName', 'courseCode', 'school', 'isPublic']),
+    async (req, res) => {
     let { user, body: data } = req
 
     data.createdBy = user._id
@@ -248,7 +252,7 @@ router.delete('/courses/:courseId', auth, isCourse, isCourseAdmin, async (req, r
  *          application/json:
  *            schema:
  *              type: object
- *              description: Any other field is rejected with INVALID_UPDATES. If courseName or courseCode changes without a title, the title is rebuilt as "courseCode - courseName".
+ *              description: Any other field is rejected with VALIDATION_ERROR. If courseName or courseCode changes without a title, the title is rebuilt as "courseCode - courseName".
  *              additionalProperties: false
  *              properties:
  *                  title:
@@ -277,17 +281,10 @@ router.delete('/courses/:courseId', auth, isCourse, isCourseAdmin, async (req, r
  *       404:
  *         $ref: '#/components/responses/NotFound'
 */
-router.patch('/courses/:courseId', auth, isCourse, isCourseAdmin, async (req, res) => {
+router.patch('/courses/:courseId', auth, isCourse, isCourseAdmin,
+    acceptFields(['title', 'courseName', 'courseCode', 'school', 'isPublic'], { atLeastOne: true }),
+    async (req, res) => {
     const { body: updates, course } = req
-
-    const modifiable = ['title', 'courseName', 'courseCode', 'school', 'isPublic']
-    const isValid = Object.keys(updates).every((key) => {
-        return modifiable.includes(key)
-    })
-
-    if (!isValid) {
-        throw new AppError('INVALID_UPDATES')
-    }
 
     if ((updates.courseName || updates.courseCode) && !updates.title) {
         const newCode = updates.courseCode ?? course.courseCode
@@ -548,7 +545,7 @@ router.get('/courses/:courseId/members/:userId', auth, isCourse, isCourseMember,
  *         application/json:
  *           schema:
  *             type: object
- *             description: Any other field is rejected with INVALID_UPDATES.
+ *             description: Any other field is rejected with VALIDATION_ERROR.
  *             additionalProperties: false
  *             properties:
  *               role:
@@ -592,22 +589,10 @@ router.get('/courses/:courseId/members/:userId', auth, isCourse, isCourseMember,
  *       404:
  *         $ref: '#/components/responses/NotFound'
  */
-router.patch('/courses/:courseId/members/:userId', auth, isCourse, isCourseAdmin, async (req, res) => {
+router.patch('/courses/:courseId/members/:userId', auth, isCourse, isCourseAdmin,
+    acceptFields(['role', 'status'], { atLeastOne: true }),
+    async (req, res) => {
     const { body: updates, course, params } = req
-
-    const modifiable = ['role', 'status']
-
-    if (!updates) {
-        throw new AppError('INVALID_UPDATES', { message: 'No updates sent' })
-    }
-
-    const isValid = Object.keys(updates).every((key) => {
-        return modifiable.includes(key)
-    })
-
-    if (!isValid) {
-        throw new AppError('INVALID_UPDATES')
-    }
 
     const membership = await CourseMembership.findOneAndUpdate(
         { course: course._id, user: params.userId },

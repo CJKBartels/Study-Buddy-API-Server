@@ -200,11 +200,12 @@ describe('PATCH /courses/:courseId/sessions/:sessionId', () => {
         expect(res.body.error.code).toBe('INVALID_UPDATES')
     })
 
-    it('returns 400 INVALID_UPDATES for a field that cannot be changed', async () => {
+    it('returns 400 VALIDATION_ERROR naming a field that cannot be changed', async () => {
         const { host, base } = await sessionWithMember()
         const res = await call('patch', host.token, base).send({ host: NON_EXISTENT_ID })
         expect(res.status).toBe(400)
-        expect(res.body.error.code).toBe('INVALID_UPDATES')
+        expect(res.body.error.code).toBe('VALIDATION_ERROR')
+        expect(res.body.error.details.host).toBeDefined()
     })
 })
 

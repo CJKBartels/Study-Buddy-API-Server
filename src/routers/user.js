@@ -3,6 +3,7 @@ import User from '../models/user.js'
 import auth from '../middleware/auth.js'
 import AppError from '../assets/AppError.js'
 import { signInLimiter, signUpLimiter } from '../middleware/rateLimit.js'
+import { acceptFields } from '../middleware/acceptFields.js'
 
 const router = new Router()
 
@@ -260,7 +261,7 @@ router.post('/user/sign-out', auth, async (req, res) => {
  *         application/json:
  *           schema:
  *             type: object
- *             description: At least one field. Any other field is rejected with INVALID_UPDATES.
+ *             description: At least one field. Any other field is rejected with VALIDATION_ERROR.
  *             minProperties: 1
  *             additionalProperties: false
  *             properties:
@@ -291,25 +292,15 @@ router.post('/user/sign-out', auth, async (req, res) => {
  *       409:
  *         $ref: '#/components/responses/Conflict'
  */
-router.patch('/users/me', auth, async (req, res) => {
+router.patch('/users/me', auth,
+    acceptFields(['username', 'password', 'email', 'timezone'], { atLeastOne: true }),
+    async (req, res) => {
     const mods = req.body
-    const props = Object.keys(mods)
-
-    if (props.length === 0) {
-        throw new AppError('INVALID_UPDATES', { message: 'No updates provided' })
-    }
-
-    const modifiable = ['username', 'password', 'email', 'timezone']
-    const isValid = props.every((prop) => modifiable.includes(prop))
-
-    if (!isValid) {
-        throw new AppError('INVALID_UPDATES')
-    }
 
     // A ValidationError from save() propagates to the central handler as a
     // 400 VALIDATION_ERROR with per-field details.
     const user = req.user
-    props.forEach((prop) => user[prop] = mods[prop])
+    Object.keys(mods).forEach((prop) => user[prop] = mods[prop])
     await user.save()
 
     res.status(200).send(user)

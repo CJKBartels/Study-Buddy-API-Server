@@ -7,6 +7,7 @@ import SessionParticipant from '../models/sessionParticipant.js'
 import CourseMembership from '../models/courseMembership.js'
 import { isValidObjectId } from 'mongoose'
 import SessionMessage from '../models/sessionMessage.js'
+import { acceptFields } from '../middleware/acceptFields.js'
 import AppError from '../assets/AppError.js'
 
 const router = new Router()
@@ -89,17 +90,11 @@ const statusIfAccepting = async (session) => {
  *       404:
  *         $ref: '#/components/responses/NotFound'
  */
-router.post('/courses/:courseId/sessions', auth, isCourse, isCourseMember, async (req, res) => {
-    const { body, course, user } = req
-
+router.post('/courses/:courseId/sessions', auth, isCourse, isCourseMember,
     // course, host, timezone, and status are set by the server, never the client
-    const creatable = ['title', 'goal', 'description', 'startsAt', 'endsAt', 'location', 'locationType', 'capacity', 'joinPolicy']
-    const rejected = Object.keys(body).filter((field) => !creatable.includes(field))
-
-    if (rejected.length > 0) {
-        const details = Object.fromEntries(rejected.map((field) => [field, 'Field cannot be set']))
-        throw new AppError('VALIDATION_ERROR', { details })
-    }
+    acceptFields(['title', 'goal', 'description', 'startsAt', 'endsAt', 'location', 'locationType', 'capacity', 'joinPolicy']),
+    async (req, res) => {
+    const { body, course, user } = req
 
     const session = new Session({
         ...body,
@@ -264,21 +259,10 @@ router.get('/courses/:courseId/sessions/:sessionId', auth, isCourse, isCourseMem
  */
 router.patch('/courses/:courseId/sessions/:sessionId',
     auth, isCourse, isCourseMember, isSession, isSessionHost,
+    acceptFields(['title', 'goal', 'description', 'startsAt', 'endsAt', 'location', 'locationType', 'capacity', 'joinPolicy', 'status'], { atLeastOne: true }),
     async (req, res) => {
         const { body: mods, session } = req
-
-        if (Object.keys(mods).length === 0) {
-            throw new AppError('INVALID_UPDATES', { message: 'Missing updates' })
-        }
-
         const props = Object.keys(mods)
-        const modifiable = ['title', 'goal', 'description', 'startsAt', 'endsAt', 'location', 'locationType', 'capacity', 'joinPolicy', 'status']
-
-        const isValid = props.every((prop) => modifiable.includes(prop))
-
-        if (!isValid) {
-            throw new AppError('INVALID_UPDATES')
-        }
 
         props.forEach((prop) => session[prop] = mods[prop])
         await session.save()
@@ -456,7 +440,7 @@ router.post('/courses/:courseId/sessions/:sessionId/invites',
     auth, isCourse, isCourseMember, isSession, isSessionParticipant,
     async (req, res) => {
         const { session, course, body, user } = req
-        const { userId } = body ?? {}
+        const { userId } = body
 
         if (!isValidObjectId(userId)) {
             throw new AppError('BAD_REQUEST', { message: 'Invalid user id' })
