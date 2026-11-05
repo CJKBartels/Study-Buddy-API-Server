@@ -2,6 +2,7 @@ import Router from 'express'
 import User from '../models/user.js'
 import auth from '../middleware/auth.js'
 import AppError from '../assets/AppError.js'
+import { signInLimiter, signUpLimiter } from '../middleware/rateLimit.js'
 
 const router = new Router()
 
@@ -32,8 +33,10 @@ const router = new Router()
  *         $ref: '#/components/responses/BadRequest'
  *       409:
  *         $ref: '#/components/responses/Conflict'
+ *       429:
+ *         $ref: '#/components/responses/TooManyRequests'
 */
-router.post('/users', async (req, res) => {
+router.post('/users', signUpLimiter(), async (req, res) => {
     const { body: data } = req
 
     data.timezone = Intl.DateTimeFormat().resolvedOptions().timeZone
@@ -203,8 +206,10 @@ router.get('/user/:userId', auth, async (req, res) => {
  *                  $ref: '#/components/schemas/AuthResponse'
  *       400:
  *          $ref: '#/components/responses/BadRequest'
+ *       429:
+ *          $ref: '#/components/responses/TooManyRequests'
  */
-router.post('/user/sign-in', async (req, res) => {
+router.post('/user/sign-in', signInLimiter(), async (req, res) => {
     const user = await User.findByCredentials(req.body.email, req.body.password)
 
     // Same error for a wrong email or a wrong password, so callers can't
