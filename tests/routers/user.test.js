@@ -616,6 +616,92 @@ describe('POST /users fields', () => {
     })
 })
 
+describe('GET /users search text', () => {
+    const search = (token, q) => request(app)
+        .get('/users')
+        .query({ q })
+        .set('Authorization', `Bearer ${token}`)
+
+    it('treats a regex character as plain text instead of crashing', async () => {
+        const { token } = await createAndSignIn()
+
+        const res = await search(token, '(')
+
+        expect(res.status).toBe(200)
+        expect(res.body).toEqual([])
+    })
+
+    it('does not let a pattern match every username', async () => {
+        const { token } = await createAndSignIn()
+
+        expect((await search(token, '.*')).body).toEqual([])
+    })
+
+    it('still matches any case, anywhere in the username', async () => {
+        const { token } = await createAndSignIn({ username: 'alphabet' })
+
+        expect((await search(token, 'PHAB')).body).toHaveLength(1)
+    })
+
+    it('answers normally when q is sent twice', async () => {
+        const { token } = await createAndSignIn()
+
+        const res = await search(token, ['a', 'b'])
+
+        expect(res.status).toBe(200)
+    })
+})
+
+describe('GET /users paging', () => {
+    const listUsers = (token, query) => request(app)
+        .get('/users')
+        .query(query)
+        .set('Authorization', `Bearer ${token}`)
+
+    // Enough users to pass the cap. Inserted directly, because 120 sign-ups
+    // through the API would hash 120 passwords.
+    async function manyUsers() {
+        await User.insertMany(Array.from({ length: 120 }, (unused, index) => ({
+            username: `bulkuser${index}`,
+            email: `bulk${index}@example.com`,
+            password: 'x'.repeat(60),
+            timezone: 'UTC'
+        })))
+        return createAndSignIn()
+    }
+
+    it.each([
+        ['no limit', {}, 20],
+        ['a small limit', { limit: 5 }, 5],
+        ['a limit over the cap', { limit: 1000 }, 100],
+        ['a limit of 0', { limit: 0 }, 20],
+        ['a negative limit', { limit: -5 }, 20],
+        ['a limit that is not a number', { limit: 'lots' }, 20]
+    ])('with %s', async (name, query, expected) => {
+        const { token } = await manyUsers()
+
+        const res = await listUsers(token, query)
+
+        expect(res.status).toBe(200)
+        expect(res.body).toHaveLength(expected)
+    })
+
+    it('skips users with offset', async () => {
+        const { token } = await manyUsers()
+
+        const first = await listUsers(token, { limit: 2 })
+        const second = await listUsers(token, { limit: 2, offset: 1 })
+
+        expect(second.body[0]._id).toBe(first.body[1]._id)
+    })
+
+    it('treats a negative offset as 0', async () => {
+        const { token } = await manyUsers()
+
+        expect((await listUsers(token, { offset: -1 })).status).toBe(200)
+    })
+})
+
 describe('POST /user/sign-in with the wrong types', () => {
     it.each([
         ['no body', undefined],
