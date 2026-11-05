@@ -28,26 +28,6 @@ const assertCanMove = (participant, status) => {
 // same moment can overbook by one. Accepted on purpose: an atomic counter on
 // Session would have to be kept in sync on every path that changes who is
 // accepted, and one missed path would make sessions look full when they aren't.
-// Fill open spots from the waitlist, longest-waiting first. Call it from every
-// path that can open a spot (leave, remove, raising capacity). This is the
-// server-side waitlisted -> accepted move the status table allows and that
-// RSVP and join refuse. Each promotion is one atomic findOneAndUpdate, so two
-// promotions running at once never pick the same person. Missing a call only
-// delays promotion until the next trigger; it can't corrupt anything.
-const promoteFromWaitlist = async (session) => {
-    const accepted = await SessionParticipant.countDocuments({ session: session._id, status: 'accepted' })
-    const openSpots = session.capacity == null ? Infinity : session.capacity - accepted
-
-    for (let promoted = 0; promoted < openSpots; promoted++) {
-        const next = await SessionParticipant.findOneAndUpdate(
-            { session: session._id, status: 'waitlisted' },
-            { status: 'accepted' },
-            { sort: { respondedAt: 1, _id: 1 } }
-        )
-        if (!next) break
-    }
-}
-
 const statusIfAccepting = async (session) => {
     if (session.capacity == null) {
         return 'accepted'
@@ -271,7 +251,7 @@ router.patch('/courses/:courseId/sessions/:sessionId',
         // demotes anyone already accepted; promotion just waits until the
         // accepted count drops below the new capacity.
         if (props.includes('capacity')) {
-            await promoteFromWaitlist(session)
+            await SessionParticipant.promoteFromWaitlist(session)
         }
 
         res.status(200).send(session)
@@ -687,7 +667,7 @@ router.delete('/courses/:courseId/sessions/:sessionId/participants/me',
         await participant.save()
 
         if (freesASpot) {
-            await promoteFromWaitlist(session)
+            await SessionParticipant.promoteFromWaitlist(session)
         }
 
         res.status(200).send(participant)
@@ -746,7 +726,7 @@ router.delete('/courses/:courseId/sessions/:sessionId/participants/:userId',
         await participant.save()
 
         if (freesASpot) {
-            await promoteFromWaitlist(session)
+            await SessionParticipant.promoteFromWaitlist(session)
         }
 
         res.status(200).send(participant)
