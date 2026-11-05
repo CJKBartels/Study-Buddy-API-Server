@@ -45,7 +45,7 @@ describe('OpenAPI spec', () => {
     })
 
     it('lists every error code in the shared response for its status', () => {
-        const responseFor = { 400: 'BadRequest', 401: 'Unauthorized', 403: 'Forbidden', 404: 'NotFound', 409: 'Conflict' }
+        const responseFor = { 400: 'BadRequest', 401: 'Unauthorized', 403: 'Forbidden', 404: 'NotFound', 409: 'Conflict', 429: 'TooManyRequests' }
         const unlisted = Object.entries(ERROR_CODES)
             .filter(([, { status }]) => responseFor[status])
             .filter(([code, { status }]) => !swaggerSpec.components.responses[responseFor[status]].description.includes(code))

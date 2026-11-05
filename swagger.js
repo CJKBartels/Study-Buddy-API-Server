@@ -413,6 +413,10 @@ const options = {
                     description: 'Clashes with current state. Codes: CONFLICT, DUPLICATE_ACCOUNT, ALREADY_PARTICIPANT, INVALID_STATUS_CHANGE.',
                     content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
                 },
+                TooManyRequests: {
+                    description: 'Rate limit reached; the RateLimit header says when it resets. Code: TOO_MANY_REQUESTS.',
+                    content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+                },
             },
             securitySchemes: {
                 bearerAuth: {
