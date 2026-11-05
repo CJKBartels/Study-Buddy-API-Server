@@ -20,6 +20,14 @@ const app = express()
 app.set('trust proxy', Number.parseInt(process.env.TRUST_PROXY ?? '0', 10) || 0)
 
 app.use(express.json())
+
+// Express 5 leaves req.body undefined when a request has no JSON body. An
+// empty object lets every route read it safely and give a normal 400.
+app.use((req, res, next) => {
+    req.body ??= {}
+    next()
+})
+
 app.use(cors())
 
 app.use(function (req, res, next) {

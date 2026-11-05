@@ -500,14 +500,15 @@ describe('PATCH /users/me', () => {
         expect(res.body.error.code).toBe('INVALID_UPDATES')
     })
 
-    it('returns 400 INVALID_UPDATES for a non-modifiable field', async () => {
+    it('returns 400 VALIDATION_ERROR naming a field that cannot be changed', async () => {
         const { token } = await createAndSignIn()
         const res = await request(app)
             .patch('/users/me')
             .set('Authorization', `Bearer ${token}`)
             .send({ _id: '000000000000000000000001' })
         expect(res.status).toBe(400)
-        expect(res.body.error.code).toBe('INVALID_UPDATES')
+        expect(res.body.error.code).toBe('VALIDATION_ERROR')
+        expect(res.body.error.details._id).toBeDefined()
     })
 
     it('returns 400 VALIDATION_ERROR for an invalid email format', async () => {

@@ -342,7 +342,7 @@ describe('PATCH /courses/:courseId', () => {
         expect(res.body.isPublic).toBe(false)
     })
 
-    it('returns 400 INVALID_UPDATES for a non-modifiable field', async () => {
+    it('returns 400 VALIDATION_ERROR naming a field that cannot be changed', async () => {
         const { token } = await createAndSignIn()
         const course = await createCourse(token)
         const res = await request(app)
@@ -350,7 +350,8 @@ describe('PATCH /courses/:courseId', () => {
             .set('Authorization', `Bearer ${token}`)
             .send({ joinCode: 'HACKED123' })
         expect(res.status).toBe(400)
-        expect(res.body.error.code).toBe('INVALID_UPDATES')
+        expect(res.body.error.code).toBe('VALIDATION_ERROR')
+        expect(res.body.error.details.joinCode).toBeDefined()
     })
 
     it('returns 400 VALIDATION_ERROR when courseName is cleared to empty', async () => {
@@ -570,7 +571,7 @@ describe('PATCH /courses/:courseId/members/:userId', () => {
         expect(persisted.status).toBe('banned')
     })
 
-    it('returns 400 INVALID_UPDATES for a non-modifiable field', async () => {
+    it('returns 400 VALIDATION_ERROR naming a field that cannot be changed', async () => {
         const admin = await createAndSignIn()
         const course = await createCourse(admin.token)
         const member = await createAndSignIn()
@@ -581,7 +582,8 @@ describe('PATCH /courses/:courseId/members/:userId', () => {
             .set('Authorization', `Bearer ${admin.token}`)
             .send({ course: NON_EXISTENT_ID })
         expect(res.status).toBe(400)
-        expect(res.body.error.code).toBe('INVALID_UPDATES')
+        expect(res.body.error.code).toBe('VALIDATION_ERROR')
+        expect(res.body.error.details.course).toBeDefined()
     })
 
     it('returns 404 NOT_FOUND when the userId has no membership in the course', async () => {

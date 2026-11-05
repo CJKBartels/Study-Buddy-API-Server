@@ -115,7 +115,6 @@ const options = {
                     properties: {
                         title: { type: 'string' },
                         description: { type: 'string' },
-                        status: { type: 'string', enum: ['active', 'archived'] },
                         dueAt: { type: 'string' },
                     }
 
@@ -169,7 +168,7 @@ const options = {
 
                 AssignmentPatchRequest: {
                     type: 'object',
-                    description: 'At least one field. Any other field is rejected with INVALID_UPDATES.',
+                    description: 'At least one field. Any other field is rejected with VALIDATION_ERROR.',
                     minProperties: 1,
                     additionalProperties: false,
 
@@ -274,7 +273,7 @@ const options = {
 
                 SessionPatchRequest: {
                     type: 'object',
-                    description: 'At least one field. Any other field is rejected with INVALID_UPDATES.',
+                    description: 'At least one field. Any other field is rejected with VALIDATION_ERROR.',
                     minProperties: 1,
                     additionalProperties: false,
                     properties: {
