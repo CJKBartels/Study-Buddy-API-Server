@@ -12,6 +12,13 @@ import { notFoundHandler, errorHandler } from './middleware/errorHandler.js'
 
 const app = express()
 
+// How many proxies sit in front of the app. Each one appends to
+// X-Forwarded-For, and Express walks that many entries back from the right
+// to find the visitor's address for req.ip (the rate limiters key on it).
+// App Platform: 2 (DigitalOcean's router, then Cloudflare). Unset: 0, so
+// req.ip is whoever connected, and the header is ignored.
+app.set('trust proxy', Number.parseInt(process.env.TRUST_PROXY ?? '0', 10) || 0)
+
 app.use(express.json())
 app.use(cors())
 
@@ -23,17 +30,6 @@ app.use(function (req, res, next) {
 
 // First, so monitors get a fast answer without going through other routers
 app.use(healthRouter)
-
-// TEMPORARY (#7): shows the proxy chain the deployed app receives, so the
-// trust proxy hop count can be read instead of guessed. Remove with #7.
-app.get('/debug/ip', (req, res) => {
-    res.send({
-        ip: req.ip,
-        connectedFrom: req.socket.remoteAddress,
-        forwardedFor: req.get('X-Forwarded-For') ?? null,
-        doConnectingIp: req.get('DO-Connecting-IP') ?? null
-    })
-})
 app.use(userRouter)
 app.use(assignmentRouter)
 app.use(sessionRouter)
