@@ -7,6 +7,16 @@ import { acceptFields } from '../middleware/acceptFields.js'
 
 const router = new Router()
 
+const DEFAULT_PAGE_SIZE = 20
+const MAX_PAGE_SIZE = 100
+
+// A missing or meaningless limit gets the default. Mongoose reads a limit of 0
+// as "no limit", so only a positive number counts.
+function pageSize(limit) {
+    const size = Number.parseInt(limit, 10)
+    return size > 0 ? Math.min(size, MAX_PAGE_SIZE) : DEFAULT_PAGE_SIZE
+}
+
 /**
  * Create User
  * 
@@ -99,7 +109,7 @@ router.get('/users/me', auth, async (req, res) => {
  *        name: limit
  *        schema:
  *          type: integer
- *        description: The most users to return. Omit for no limit.
+ *        description: The most users to return. Defaults to 20, and anything over 100 returns 100.
  *     responses:
  *       200:
  *         description: User objects
@@ -119,12 +129,13 @@ router.get('/users', auth, async (req, res) => {
     const filter = {}
 
     if (query.q) {
-        filter.username = { $regex: query.q, $options: 'i' }
+        // Escaped so the text is matched as written, not run as a pattern
+        filter.username = { $regex: RegExp.escape(String(query.q)), $options: 'i' }
     }
 
     const users = await User.find(filter, await User.publicUserProjection())
-        .skip(parseInt(query.offset))
-        .limit(parseInt(query.limit))
+        .skip(Math.max(Number.parseInt(query.offset, 10) || 0, 0))
+        .limit(pageSize(query.limit))
 
     res.status(200).send(users)
 })
