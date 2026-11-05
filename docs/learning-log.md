@@ -3,6 +3,14 @@
 Design decisions and lessons from working in this codebase.
 Newest entries at the top.
 
+## 2026-11-05 — Rate limiting: the limit is only as good as the IP behind it
+
+- **Task:** slow down password guessing and mass sign-ups (#7) on `POST /user/sign-in` and `POST /users`.
+- **Decision:** `express-rate-limit` with its in-memory store. Sign-in allows 10 attempts per 15 minutes, keyed on IP and email together. Sign-up allows 5 per hour, keyed on IP. Going over the limit throws `TOO_MANY_REQUESTS` through `errorHandler`, so a 429 uses the same error envelope as every other route. `TRUST_PROXY` sets Express's `trust proxy` to the number of proxies in front of the app: 2 on App Platform (DigitalOcean's router, then Cloudflare). The limits come from env vars so the test suite can raise them, and `tests/rateLimit.test.js` checks low limits on a small app of its own.
+- **Alternatives considered:** a hand-rolled counter (no dependency, but we'd own the window logic and IPv6 handling). Keying sign-in on IP alone (students on a shared campus IP would use up each other's attempts) or on email alone (anyone could lock a user out by failing on purpose). A shared store such as Redis (counts survive restarts and work across instances, but it's one more service to run for a single instance).
+- **Lesson:** `trust proxy` can be wrong in two directions. Too low, and `req.ip` is the proxy's address, so every visitor shares one limit. Too high, and Express believes an entry the client wrote into `X-Forwarded-For`, so changing that header gets a fresh limit on every request. A temporary `/debug/ip` route showed the real proxy chain so the number wasn't a guess, and a test now sends fake entries to prove they're ignored.
+- **Revisit:** counts reset on every restart or deploy, and a second instance would double the limits; either problem means a shared store. The hop count belongs to the hosting setup, so changing hosts or adding a proxy breaks limiting without any error. Keying on email means one IP can try a common password against many accounts, because each email gets its own 10 attempts.
+
 ## 2026-10-22 — A docs agent, checked by hand and then by a test
 
 - **Task:** fix the API docs after `GET /assignments` turned out to document 2 path params it doesn't have.
