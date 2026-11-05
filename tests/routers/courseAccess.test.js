@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import request from 'supertest'
 import app from '../../src/app.js'
+import CourseMembership from '../../src/models/courseMembership.js'
 
 let userCounter = 0
 
@@ -41,6 +42,8 @@ async function courseWithPeople(overrides = {}) {
 const memberUrl = (courseUrl, person) => `${courseUrl}/members/${person.user._id}`
 
 const ban = (admin, courseUrl, person) => call('patch', admin.token, memberUrl(courseUrl, person)).send({ status: 'banned' })
+
+const makeAdmin = (admin, courseUrl, person) => call('patch', admin.token, memberUrl(courseUrl, person)).send({ role: 'admin' })
 
 const courseRoutes = [
     ['get', 'GET /courses/:courseId', (courseUrl) => courseUrl],
@@ -137,5 +140,65 @@ describe('a public course', () => {
 
         expect(res.status).toBe(403)
         expect(res.body.error.code).toBe('COURSE_BANNED')
+    })
+})
+
+describe('the last admin', () => {
+    const ways = [
+        ['leaving', (admin, courseUrl) => call('delete', admin.token, `${courseUrl}/members/me`)],
+        ['removing themselves', (admin, courseUrl) => call('delete', admin.token, memberUrl(courseUrl, admin))],
+        ['demoting themselves', (admin, courseUrl) => call('patch', admin.token, memberUrl(courseUrl, admin)).send({ role: 'member' })],
+        ['banning themselves', (admin, courseUrl) => call('patch', admin.token, memberUrl(courseUrl, admin)).send({ status: 'banned' })]
+    ]
+
+    it.each(ways)('gets a 409 for %s, and stays an active admin', async (name, attempt) => {
+        const { admin, course, courseUrl } = await courseWithPeople()
+
+        const res = await attempt(admin, courseUrl)
+
+        expect(res.status).toBe(409)
+        expect(res.body.error.code).toBe('LAST_ADMIN')
+
+        const membership = await CourseMembership.findOne({ course: course._id, user: admin.user._id })
+        expect(membership).toMatchObject({ role: 'admin', status: 'active' })
+    })
+
+    it.each(ways)('is free to do %s once there is another admin', async (name, attempt) => {
+        const { admin, member, courseUrl } = await courseWithPeople()
+        await makeAdmin(admin, courseUrl, member)
+
+        const res = await attempt(admin, courseUrl)
+
+        expect(res.status).toBeLessThan(300)
+    })
+
+    it('is still the last admin when the other admin is banned', async () => {
+        const { admin, member, courseUrl } = await courseWithPeople()
+        await makeAdmin(admin, courseUrl, member)
+        await ban(admin, courseUrl, member)
+
+        const res = await call('delete', admin.token, `${courseUrl}/members/me`)
+
+        expect(res.body.error.code).toBe('LAST_ADMIN')
+    })
+
+    it('can edit their own membership in ways that keep them an admin', async () => {
+        const { admin, courseUrl } = await courseWithPeople()
+
+        const res = await call('patch', admin.token, memberUrl(courseUrl, admin)).send({ role: 'admin' })
+
+        expect(res.status).toBe(200)
+    })
+
+    it('does not stop a regular member from leaving', async () => {
+        const { member, courseUrl } = await courseWithPeople()
+
+        expect((await call('delete', member.token, `${courseUrl}/members/me`)).status).toBe(204)
+    })
+
+    it('does not stop an admin from removing a regular member', async () => {
+        const { admin, member, courseUrl } = await courseWithPeople()
+
+        expect((await call('delete', admin.token, memberUrl(courseUrl, member))).status).toBe(204)
     })
 })
