@@ -51,7 +51,7 @@ function listFilters({ status = 'active', source }) {
  *           schema:
  *             $ref: '#/components/schemas/AssignmentCreateRequest'
  *     responses:
- *       200:
+ *       201:
  *         description: The created assignment
  *         content:
  *          application/json:
@@ -81,7 +81,7 @@ router.post('/courses/:courseId/assignments',
             course: course._id,
             source: courseMembership.role == 'member' ? 'community' : 'moderator'
         })
-        res.status(200).send(assignment)
+        res.status(201).send(assignment)
     })
 
 /**
@@ -289,7 +289,11 @@ router.post('/courses/:courseId/assignments/:assignmentId/stamp',
 *      - $ref: '#/components/parameters/AssignmentId'
 *     responses:
 *       200:
-*         description: Assignment Archived Successfully
+*         description: The archived assignment
+*         content:
+*          application/json:
+*              schema:
+*                  $ref: '#/components/schemas/Assignment'
 *       400:
 *         $ref: '#/components/responses/BadRequest'
 *       401:
@@ -317,7 +321,7 @@ router.delete('/courses/:courseId/assignments/:assignmentId',
         assignment.status = 'archived'
         await assignment.save()
 
-        res.status(200).send('Assignment Archived Successfully')
+        res.status(200).send(assignment)
     })
 
 /**

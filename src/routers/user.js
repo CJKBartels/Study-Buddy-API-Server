@@ -244,8 +244,8 @@ router.post('/user/sign-in', signInLimiter(), async (req, res) => {
  *     tags: [User]
  *  
  *     responses:
- *       200:
- *         description: Signed Out Successfully
+ *       204:
+ *         description: Signed out. No body.
  *       401:
  *         $ref: '#/components/responses/Unauthorized'
 */
@@ -254,7 +254,7 @@ router.post('/user/sign-out', auth, async (req, res) => {
     // simultaneous sign-outs (or a sign-in) can't overwrite each other
     await User.updateOne({ _id: req.user._id }, { $pull: { tokens: { token: req.token } } })
 
-    res.status(200).send('Signed Out Successfully')
+    res.status(204).send()
 })
 
 /**
@@ -326,15 +326,15 @@ router.patch('/users/me', auth,
  *     summary: Delete Account
  *     tags: [User]
  *     responses:
- *       200:
- *         description: Account Deleted
+ *       204:
+ *         description: Account deleted. No body.
  *       401:
  *         $ref: '#/components/responses/Unauthorized'
  */
 router.delete('/users/me', auth, async (req, res) => {
     await req.user.deleteOne()
 
-    res.status(200).send('Account Deleted')
+    res.status(204).send()
 })
 
 
