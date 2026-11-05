@@ -6,6 +6,8 @@ Study Buddy helps students in the same course find each other and get work done 
 
 This repo is the REST API: Express 5, MongoDB through Mongoose, and JWT auth. The frontend lives in [Study-Buddy](https://github.com/CJKBartels/Study-Buddy).
 
+**Try it live:** the [interactive API docs](https://studdy-buddy-server-coe27.ondigitalocean.app/api-docs) run against the deployed API. The login is under [Demo data](#demo-data).
+
 ## Architecture
 
 ```mermaid
