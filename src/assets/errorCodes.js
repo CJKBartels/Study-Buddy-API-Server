@@ -10,6 +10,7 @@ export const ERROR_CODES = Object.freeze({
     FORBIDDEN: { status: 403, message: 'Forbidden' },
     NOT_FOUND: { status: 404, message: 'Resource not found' },
     CONFLICT: { status: 409, message: 'Conflict' },
+    TOO_MANY_REQUESTS: { status: 429, message: 'Too many requests, try again later' },
     INTERNAL_ERROR: { status: 500, message: 'Internal server error' },
     DATABASE_UNAVAILABLE: { status: 503, message: 'Database is not connected' },
 
