@@ -98,10 +98,10 @@ async function courseWithMember() {
 }
 
 describe('POST /courses/:courseId/assignments', () => {
-    it('returns 200 with the created assignment and source=community for a member', async () => {
+    it('returns 201 with the created assignment and source=community for a member', async () => {
         const { member, course } = await courseWithMember()
         const res = await createAssignment(member.token, course._id)
-        expect(res.status).toBe(200)
+        expect(res.status).toBe(201)
         expect(res.body.title).toBe(baseAssignment().title)
         expect(res.body.source).toBe('community')
         expect(res.body.status).toBe('active')
@@ -112,7 +112,7 @@ describe('POST /courses/:courseId/assignments', () => {
         const { admin, member, course } = await courseWithMember()
         await setRole(admin.token, course._id, member.user._id, 'moderator')
         const res = await createAssignment(member.token, course._id)
-        expect(res.status).toBe(200)
+        expect(res.status).toBe(201)
         expect(res.body.source).toBe('moderator')
     })
 
@@ -338,6 +338,7 @@ describe('DELETE /courses/:courseId/assignments/:assignmentId', () => {
             .delete(`/courses/${course._id}/assignments/${created.body._id}`)
             .set('Authorization', `Bearer ${member.token}`)
         expect(res.status).toBe(200)
+        expect(res.body.status).toBe('archived')
 
         const check = await request(app)
             .get(`/courses/${course._id}/assignments/${created.body._id}`)

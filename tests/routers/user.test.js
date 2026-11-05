@@ -418,12 +418,12 @@ describe('POST /user/sign-in', () => {
 })
 
 describe('POST /user/sign-out', () => {
-    it('returns 200 and removes the token from the database', async () => {
+    it('returns 204 and removes the token from the database', async () => {
         const { token, user } = await createAndSignIn()
         const res = await request(app)
             .post('/user/sign-out')
             .set('Authorization', `Bearer ${token}`)
-        expect(res.status).toBe(200)
+        expect(res.status).toBe(204)
         const persisted = await User.findById(user._id)
         expect(persisted.tokens.some((t) => t.token === token)).toBe(false)
     })
@@ -568,12 +568,12 @@ describe('PATCH /users/me', () => {
 })
 
 describe('DELETE /users/me', () => {
-    it('returns 200 and removes the user from the database', async () => {
+    it('returns 204 and removes the user from the database', async () => {
         const { token, user } = await createAndSignIn()
         const res = await request(app)
             .delete('/users/me')
             .set('Authorization', `Bearer ${token}`)
-        expect(res.status).toBe(200)
+        expect(res.status).toBe(204)
         const deleted = await User.findById(user._id)
         expect(deleted).toBeNull()
     })

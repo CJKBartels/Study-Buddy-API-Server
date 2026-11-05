@@ -88,6 +88,19 @@ const options = {
                     ]
                 },
 
+                CourseMembership: {
+                    type: 'object',
+                    properties: {
+                        _id: { type: 'string' },
+                        course: { type: 'string' },
+                        user: { type: 'string' },
+                        role: { type: 'string', enum: ['member', 'moderator', 'admin'] },
+                        status: { type: 'string', enum: ['active', 'banned'] },
+                        createdAt: { type: 'string', format: 'date-time' },
+                        updatedAt: { type: 'string', format: 'date-time' },
+                    },
+                },
+
                 CourseCreateRequest: {
                     type: 'object',
 

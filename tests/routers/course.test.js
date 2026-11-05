@@ -387,6 +387,7 @@ describe('POST /courses/join/:joinCode', () => {
         const joiner = await createAndSignIn()
 
         const res = await joinCourse(joiner.token, course.joinCode)
+        expect(res.body).toMatchObject({ course: course._id, user: joiner.user._id, role: 'member', status: 'active' })
         expect(res.status).toBe(201)
 
         const membership = await CourseMembership.findOne({ course: course._id, user: joiner.user._id })
@@ -440,23 +441,20 @@ describe('POST /courses/join/:joinCode', () => {
 })
 
 describe('PATCH /courses/:courseId/joinCode', () => {
-    it('returns 201 with a new join code for the admin', async () => {
+    it('returns 200 with a new join code for the admin', async () => {
         const { token } = await createAndSignIn()
         const course = await createCourse(token)
         const res = await request(app)
             .patch(`/courses/${course._id}/joinCode`)
             .set('Authorization', `Bearer ${token}`)
-        expect(res.status).toBe(201)
-        // The route sends the raw join code string via res.send(), which Express
-        // serves as text/html rather than JSON — supertest surfaces that as
-        // res.text, not res.body (res.body is `{}` for non-JSON responses).
-        expect(typeof res.text).toBe('string')
-        expect(res.text).not.toBe(course.joinCode)
+        expect(res.status).toBe(200)
+        expect(res.body.joinCode).toEqual(expect.any(String))
+        expect(res.body.joinCode).not.toBe(course.joinCode)
 
         const check = await request(app)
             .get(`/courses/${course._id}/joinCode`)
             .set('Authorization', `Bearer ${token}`)
-        expect(check.body.joinCode).toBe(res.text)
+        expect(check.body.joinCode).toBe(res.body.joinCode)
     })
 
     it('returns 403 NOT_COURSE_ADMIN for a non-admin member', async () => {

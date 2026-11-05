@@ -318,12 +318,11 @@ router.patch('/courses/:courseId', auth, isCourse, isCourseAdmin,
  *        description: joinCode of Course
  *     responses:
  *       201:
- *         description: Joined as a member
+ *         description: Joined as a member. Returns the new membership.
  *         content:
- *          text/plain:
+ *          application/json:
  *              schema:
- *                  type: string
- *                  example: User has joined successfully
+ *                  $ref: '#/components/schemas/CourseMembership'
  *       401:
  *         $ref: '#/components/responses/Unauthorized'
  *       403:
@@ -351,7 +350,7 @@ router.post('/courses/join/:joinCode', auth, async (req, res) => {
     try {
         const membership = new CourseMembership(data)
         await membership.save()
-        res.status(201).send('User has joined successfully')
+        res.status(201).send(membership)
     } catch (err) {
         if (err?.code !== 11000) throw err
 
@@ -374,13 +373,16 @@ router.post('/courses/join/:joinCode', auth, async (req, res) => {
  *     parameters:
  *       - $ref: '#/components/parameters/CourseId'
  *     responses:
- *       201:
+ *       200:
  *         description: The new join code
  *         content:
- *          text/plain:
- *              schema:
- *                  type: string
- *                  example: K7Q2M9XA
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 joinCode:
+ *                   type: string
+ *                   example: K7Q2M9XA
  *       400:
  *         $ref: '#/components/responses/BadRequest'
  *       401:
@@ -401,7 +403,7 @@ router.patch('/courses/:courseId/joinCode', auth, isCourse, isCourseAdmin, async
             course.joinCode = joinCode
 
             await course.save()
-            return res.status(201).send(joinCode)
+            return res.status(200).send({ joinCode })
         } catch (err) {
             if (err?.code === 11000 && err?.keyPattern?.joinCode) continue
             throw err
